@@ -19,6 +19,38 @@ export async function loadManifest(url = 'assets/manifest.json') {
 }
 
 const gltf = new GLTFLoader();
+
+// 색상만 변경하고 텍스처 및 리깅 셰이더는 그대로 유지한다. 원본 값을 보관해
+// 경로가 반복 선택되거나 초기화될 때 틴트가 누적되지 않도록 한다.
+export function setDragonPathVisual(model, path) {
+  if (!model) return;
+  const tint = path === 'flame' ? new T.Color(0xff7048) : path === 'storm' ? new T.Color(0x66baff) : null;
+  const glow = path === 'flame' ? new T.Color(0x9d2409) : path === 'storm' ? new T.Color(0x064da8) : null;
+  const seen = new Set();
+  model.traverse(object => {
+    if (!object.isMesh || !object.material) return;
+    for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+      if (!material || seen.has(material)) continue;
+      seen.add(material);
+      if (!material.userData.dragonOriginal) {
+        material.userData.dragonOriginal = {
+          color: material.color?.clone(), emissive: material.emissive?.clone(),
+          emissiveIntensity: material.emissiveIntensity
+        };
+      }
+      const base = material.userData.dragonOriginal;
+      if (base.color && material.color) {
+        material.color.copy(base.color);
+        if (tint) material.color.lerp(tint, 0.48);
+      }
+      if (base.emissive && material.emissive) {
+        material.emissive.copy(base.emissive);
+        if (glow) material.emissive.lerp(glow, 0.5);
+        material.emissiveIntensity = tint ? Math.max(base.emissiveIntensity ?? 1, 0.55) : base.emissiveIntensity;
+      }
+    }
+  });
+}
 // 승인된 GLB를 로드해 목표 크기(길이 m)로 정규화하고 전방을 -Z로 맞춘 Group을 돌려준다.
 export async function loadModel(id, { length = 4.5, flap = false, rig = false } = {}) {
   const a = manifest?.[id];
