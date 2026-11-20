@@ -1,6 +1,6 @@
-// 모바일 터치 조작: 좌측 가상 조이스틱(이동), 우측 화면 드래그(시점), 우측 버튼(FIRE/BOOST/UP/DOWN).
+// 모바일 터치 조작: 좌측 가상 조이스틱(이동), 우측 화면 드래그(시점), 우측 버튼(FIRE/BOOST/UP/DOWN) + 스킬(S1/S2/ULT).
 // 멀티터치 지원. 키보드·마우스와 함께 동작하며, 터치 기기에서만 UI가 보인다.
-export function createTouchControls({ onLook }) {
+export function createTouchControls({ onLook, onSkill }) {
   const state = { moveX: 0, moveY: 0, fire: false, boost: false, up: false, down: false, active: false };
   const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   const root = document.createElement('div');
@@ -13,6 +13,11 @@ export function createTouchControls({ onLook }) {
       <button data-k="down" aria-label="하강">▼</button>
       <button data-k="boost" class="tc-boost" aria-label="가속">BOOST</button>
       <button data-k="fire" class="tc-fire" aria-label="브레스">FIRE</button>
+    </div>
+    <div class="tc-skills">
+      <button data-s="skill1" aria-label="스킬1">S1</button>
+      <button data-s="skill2" aria-label="스킬2">S2</button>
+      <button data-s="ult" class="tc-ult" aria-label="궁극기">ULT</button>
     </div>`;
   document.body.appendChild(root);
   if (!isTouch) root.hidden = true;
@@ -53,6 +58,8 @@ export function createTouchControls({ onLook }) {
     const off = () => { state[k] = false; b.classList.remove('on'); };
     b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
   }
+  // 스킬 버튼: 누르는 순간 1회 시전
+  for (const b of root.querySelectorAll('[data-s]')) b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); onSkill?.(b.dataset.s); b.classList.add('on'); setTimeout(() => b.classList.remove('on'), 150); });
   return {
     state, isTouch,
     setVisible(v) { root.hidden = !v || !isTouch; },

@@ -9,6 +9,7 @@ import {loadEnvAssets} from './world/env-assets.js';
 import {createTouchControls} from './touch.js';
 import {loadManifest, loadModel, setDragonPathVisual} from './assets-loader.js';
 import {FlightAnimator} from './dragon-anim.js';
+import {createSkillSystem, skillFor, fireTrait, SLOT_UNLOCK, COMBO_WINDOW, comboLabel, ULT_PER_KILL, ULT_PER_SEC} from './skills.js';
 
 const $ = s => document.querySelector(s), canvas = $('#world');
 const scene = new T.Scene(); // 하늘·안개는 world/timeofday.js 가 관리
@@ -47,12 +48,14 @@ const S = terrain.spawnPoint; player.position.copy(S); player.rotation.order = '
 const anim = new FlightAnimator(), animIn = {fwd: 0, side: 0, up: false, down: false, boost: false, yaw: 0};
 // 테스트 전용 디버그 카메라: ?animcam=side|front|back|top|tq|tqb (&animdist=거리)
 const params = new URLSearchParams(location.search);
+if (params.get('live')) import('./live-reload.js'); // 개발용: 옆 창에서 저장 즉시 반영
 const animCam = params.get('animcam'), animDist = +(params.get('animdist') || 16), camOff = new T.Vector3();
 
 // ---------- 상태 ----------
 let playing = false, paused = false, over = false, path = '', level = 1, xp = 0, kills = 0, lateKills = 0, rank = 0, rankXp = 0;
 let hp = maxHpForLevel(1), maxHp = hp, invuln = 0, hitTimer = 0, yaw = 0, pitch = 0, fireTimer = 0, time = 0, runTime = 0;
 let mouseDown = false, orbiting = false, flySpeed = 0, idleTime = 0, gliding = false, scaleNow = 1, camDistNow = STAGE.camDist[0];
+let combo = 0, comboTimer = 0, hitStopT = 0, slowT = 0, slowK = 1, shakeAmp = 0, diveTime = 0, shockCd = 0;
 let coronation = -1, coronationT = 0, ult = 0, spawnBudget = 0, dashTimer = 6, shotTokens = 3, bannerTimer = 0;
 const store = {get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} }};
 let coins = Number(store.get('dragonEmpireCoins') || 0); $('#coins').textContent = coins;
@@ -81,6 +84,23 @@ function makeEnemy(x, y, z, kind = pickKind()) {
   const grow = ENEMY_GROW[stage() - 1]; e.scale.multiplyScalar(grow); // 플레이어가 커져도 적이 점처럼 보이지 않게
   e.userData = {kind, grow, wings, hp: STAGE.enemyHp[stage() - 1] * K.hp, xp: K.xp, speed: K.speed, glb: !!e.userData.glb, phase: Math.random() * 6.28, shootCd: 1.5 + Math.random() * 2.5, dash: 0, dashDir: new T.Vector3(), orbit: Math.random() < .5 ? 1 : -1};
   scene.add(e); enemies.push(e); return e;
+}
+
+// ---------- 엘리트: 황금 등불 대장 (2단계부터 70초마다, 나방 호위 6) ----------
+let eliteCd = params.get('elite') ? 4 : 70, elite = null;
+const ELITE_GOLD = new T.Color(0xffc24a);
+function spawnElite() {
+  groupCenter(_c); const e = makeEnemy(_c.x, _c.y, _c.z, 'knight'), u = e.userData;
+  e.scale.multiplyScalar(1.6); u.hp *= 8; u.xp = 12; u.elite = true; u.speed = .9; u.grow = (u.grow || 1) * 1.6;
+  e.traverse(o => { if (!o.isMesh) return; o.material = o.material.clone(); o.material.emissive = ELITE_GOLD.clone(); o.material.emissiveIntensity = .55; });
+  for (let i = 0; i < 6; i++) makeEnemy(_c.x + (Math.random() - .5) * 40, _c.y + (Math.random() - .5) * 15, _c.z + (Math.random() - .5) * 40, 'moth');
+  elite = e; const ang = Math.atan2(-(_c.x - player.position.x), -(_c.z - player.position.z)) - yaw, side = Math.sin(ang) > .3 ? '왼쪽' : Math.sin(ang) < -.3 ? '오른쪽' : Math.cos(ang) > 0 ? '정면' : '후방';
+  banner('황금 등불 대장 출현', `${side} 하늘 · 처치 시 경험치 대량·생명력·ULT 충전`, 2.6);
+}
+function updateElite(dt) {
+  if (elite && !elite.parent) elite = null;
+  if (elite) { if (Math.random() < .5) spark(elite.position, 0xffd27a, _pv.set(0, 6, 0), 6 * (elite.userData.grow || 1), .6); return; }
+  if (stage() >= 2 && coronation < 0 && !boss && (eliteCd -= dt) <= 0) { eliteCd = 70; spawnElite(); }
 }
 
 // ---------- 보스: 등불의 여왕 루세르나 (엠페러 이후) ----------
@@ -202,9 +222,9 @@ const pathColor = (flame, storm) => path === 'storm' ? storm : flame;
 // ---------- 입력 ----------
 const keys = {};
 function look(dx, dy, kx, ky) { yaw -= dx * kx * (Math.cos(pitch) < 0 ? -1 : 1); pitch -= dy * ky; pitch = T.MathUtils.euclideanModulo(pitch + Math.PI, 2 * Math.PI) - Math.PI; } // 상하 무제한(사용자 요청)
-const touch = createTouchControls({onLook: (dx, dy) => { if (playing && !paused) look(dx, dy, .005, .004); }}); touch.setVisible(false);
+const touch = createTouchControls({onLook: (dx, dy) => { if (playing && !paused) look(dx, dy, .005, .004); }, onSkill: slot => castSkill(slot)}); touch.setVisible(false);
 function clearInput() { for (const key in keys) keys[key] = false; mouseDown = false; orbiting = false; touch.reset(); }
-window.addEventListener('keydown', e => { keys[e.code] = true; if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); if (e.code === 'Escape' && playing && $('#choice').hidden) pause(); });
+window.addEventListener('keydown', e => { if (!e.repeat) { if (e.code === 'KeyQ') castSkill('skill1'); if (e.code === 'KeyE') castSkill('skill2'); if (e.code === 'KeyR') castSkill('ult'); } keys[e.code] = true; if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); if (e.code === 'Escape' && playing && $('#choice').hidden) pause(); });
 window.addEventListener('keyup', e => keys[e.code] = false);
 window.addEventListener('blur', () => { clearInput(); if (playing && !over && $('#choice').hidden) pause(); });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -227,27 +247,52 @@ function refresh() {
   $('#objective').textContent = level >= MAX_LEVEL ? '황제의 하늘 · 사냥하며 위계를 올리세요 (귀환 시 보상)' : st === 3 ? 'Lv.30 드래곤 엠페러로 진화하세요' : st === 2 ? 'Lv.20 3단계 진화까지 성장하세요' : 'Lv.10 진화의 갈림길까지 성장하세요';
   $('#return').hidden = level < MAX_LEVEL || over; $('#pause-return').hidden = level < MAX_LEVEL;
 }
+function showCombo() {
+  const el = $('#combo'); if (combo < 3) { el.classList.remove('on'); return; }
+  el.querySelector('b').textContent = combo; el.querySelector('small').textContent = comboLabel(combo, stage()) || 'COMBO';
+  el.classList.remove('pop'); void el.offsetWidth; el.classList.add('on', 'pop'); el.classList.toggle('max', combo >= 30 && stage() >= 4);
+}
+// 스킬 바 HUD (매 프레임, 변화 있을 때만 DOM 갱신)
+const slotEls = {}; let skillHudKey = '';
+function updateSkillHud() {
+  const st = stage();
+  for (const slot of ['skill1', 'skill2', 'ult']) {
+    const el = slotEls[slot] ||= $(`#skills [data-slot=${slot}]`); if (!el) continue;
+    const sk = skillFor(path, slot, st), cd = skills.cooldowns[slot];
+    const frac = !sk ? 1 : slot === 'ult' ? 1 - ult / 100 : cd / sk.cd;
+    const key = (sk ? sk.name : 'x') + Math.round(frac * 40);
+    if (el.dataset.key === key) continue; el.dataset.key = key;
+    el.classList.toggle('locked', !sk); el.classList.toggle('ready', !!sk && frac <= 0);
+    el.style.setProperty('--cd', Math.max(0, frac));
+    el.querySelector('em').textContent = sk ? sk.name : `${SLOT_UNLOCK[slot]}단계 해금`;
+    const tb = document.querySelector(`.tc-skills [data-s=${slot}]`); if (tb) { tb.style.setProperty('--cd', Math.max(0, frac)); tb.classList.toggle('locked', !sk); }
+  }
+  const fireEl = $('#skills [data-slot=fire] em'), fname = fireTrait(path, st).name;
+  if (fireEl.textContent !== fname) fireEl.textContent = fname;
+}
 function banner(title, sub = '', sec = 2.2) { $('#banner b').textContent = title; $('#banner small').textContent = sub; $('#banner').classList.add('on'); bannerTimer = sec; }
 function hurt(amount) {
   if (invuln > 0 || coronation >= 0 || over) return;
-  hp -= amount; refresh(); document.body.classList.remove('hurt'); void document.body.offsetWidth; document.body.classList.add('hurt');
+  amount *= 1 - skills.damageReduce(); hp -= amount; refresh(); document.body.classList.remove('hurt'); void document.body.offsetWidth; document.body.classList.add('hurt');
   if (hp <= 0) finish(level >= MAX_LEVEL ? 'fall' : 'fail');
 }
 
 // ---------- 진행 ----------
-function start() { playing = true; paused = false; $('#start').hidden = true; $('#hud').hidden = false; touch.setVisible(true); refresh(); }
+let prewarmed = false;
+function start() { if (!prewarmed) { prewarmed = true; try { skills.prewarm(renderer, camera); } catch (e) { console.warn(e); } } playing = true; paused = false; $('#start').hidden = true; $('#hud').hidden = false; touch.setVisible(true); refresh(); }
 function pause() { paused = true; clearInput(); touch.setVisible(false); $('#start').hidden = false; $('#begin').textContent = '비행 계속하기 ↗'; refresh(); }
 $('#begin').onclick = start; $('#restart').onclick = () => location.reload();
 $('#return').onclick = () => finish('return'); $('#pause-return').onclick = () => finish('return');
 document.querySelectorAll('[data-path]').forEach(b => b.onclick = () => {
   if (over) return;
-  path = b.dataset.path; setDragonPathVisual(player.userData.model, path);
+  path = b.dataset.path; setDragonPathVisual(player.userData.model, path); document.body.classList.toggle('storm', path === 'storm');
   player.userData.skin.color.set(pathColor(0xda5639, 0x477fbc)); player.userData.wing.color.set(pathColor(0xffb653, 0x8fd5ed));
   refresh(); hp = maxHp; $('#choice').hidden = true; paused = false; touch.setVisible(true); refresh();
   burst(player.position, pathColor(0xffa326, 0x63dcff), 100, 32, fxScale());
 });
 function finish(kind) {
   if (over) return; over = true; playing = false; touch.setVisible(false); document.exitPointerLock?.();
+  skills.reset(); $('#combo').classList.remove('on');
   for (const b of bolts) scene.remove(b.o); bolts.length = 0; for (const b of enemyBolts) scene.remove(b.o); enemyBolts.length = 0; for (const b of bossBolts) scene.remove(b.o); bossBolts.length = 0; $('#bossbar').hidden = true;
   const reward = crystalReward({level, kills, rank, lateKills, boss: bossKills > 0}); coins += reward; store.set('dragonEmpireCoins', coins); $('#coins').textContent = coins;
   const emperor = level >= MAX_LEVEL, mm = Math.floor(runTime / 60), ss = String(Math.floor(runTime % 60)).padStart(2, '0');
@@ -263,6 +308,9 @@ function startCoronation() {
   banner('드래곤 엠페러 대관', 'ULT 충전 완료 · 황제의 하늘이 열립니다', 3.5); refresh();
 }
 function killEnemy(e) {
+  combo = comboTimer > 0 ? combo + 1 : 1; comboTimer = COMBO_WINDOW; showCombo();
+  if (stage() >= 4 && coronation < 0) ult = Math.min(100, ult + ULT_PER_KILL);
+  if (e.userData.elite) { elite = null; for (let i = 0; i < 3; i++) burst(e.position, i ? 0xffd27a : 0xffffff, 90, 50, 2.2); shakeAmp = Math.max(shakeAmp, .9); hitStopT = Math.max(hitStopT, .09); hp = maxHp; ult = Math.min(100, ult + 30); banner('황금 등불 대장 격파!', '생명력 회복 · ULT +30', 2); }
   removeEnemy(e); burst(e.position, pathColor(0xffa33d, 0x66ddff), 40, 30, Math.min(fxScale(), 1.6)); kills++;
   hp = Math.min(maxHp, hp + maxHp * .02);
   if (level >= MAX_LEVEL) {
@@ -319,6 +367,17 @@ function updateFlight(dt) {
   const hl = Math.hypot(dir.x, dir.z) || 1, floorY = clearanceHeight(player.position.x, player.position.z, sc, dir.x / hl, dir.z / hl);
   if (player.position.y < floorY) player.position.y = Math.max(player.position.y + (floorY - player.position.y) * (1 - Math.exp(-14 * dt)), floorY - 2.5 * sc);
   player.position.x = T.MathUtils.clamp(player.position.x, -2700, 2700); player.position.z = T.MathUtils.clamp(player.position.z, -2700, 2700);
+  // 급강하 후 끌어올리기 → 충격파 (3단계부터)
+  shockCd -= dt;
+  if (st >= 3 && pitch < -.45 && flySpeed > base * .9) diveTime += dt;
+  else if (diveTime > .6 && pitch > -.15 && shockCd <= 0) {
+    diveTime = 0; shockCd = 2.5; const r = 16 + 7 * sc;
+    skills.ring(player.position, r * 1.3, pathColor(0xffd27a, 0xbff6ff), .5); burst(player.position, pathColor(0xffa33d, 0x9ff0ff), 70, 50, fxScale());
+    shakeAmp = Math.max(shakeAmp, .8); banner('급강하 충격파', '', .8);
+    let killed = 0; for (const e of [...enemies]) if (e.position.distanceTo(player.position) < r + 2 * ((e.userData.grow || 1) - 1)) killed += damageEnemy(e, boltDamage(level, path, rank) * 4) ? 1 : 0;
+    if (boss && boss.position.distanceTo(player.position) < r + boss.userData.radius) damageBoss(boltDamage(level, path, rank) * 4, player.position);
+    if (killed >= 2) hitStopT = Math.max(hitStopT, .06);
+  } else if (pitch > -.3) diveTime = 0;
   const firing = mouseDown || keys.KeyF || ts.fire;
   if (moving || firing || gliding || Math.abs(flySpeed) > 1) { player.rotation.y = yaw; player.rotation.x = pitch; }
   animIn.fwd = gliding ? .6 : fwdAmt; animIn.side = sideAmt; animIn.up = up; animIn.down = down || (gliding && pitch > -.2); animIn.boost = boosting && moving;
@@ -338,19 +397,51 @@ function fireBreath(dt, firing) {
   b.position.copy(player.position).addScaledVector(aim, 4.8 * s); b.scale.setScalar(.6 + .4 * s);
   aim.subVectors(aimPoint, b.position).normalize();
   const speed = 140 * k;
-  bolts.push({o: b, prev: b.position.clone(), v: aim.clone().multiplyScalar(speed), life: Math.min(3, 650 / speed), dmg: boltDamage(level, path, rank), r: 4.5 + .55 * (.6 + .4 * s)});
+  bolts.push({o: b, prev: b.position.clone(), v: aim.clone().multiplyScalar(speed), life: Math.min(3, 650 / speed), dmg: boltDamage(level, path, rank), r: 4.5 + .55 * (.6 + .4 * s), pierce: fireTrait(path, stage()).pierce || 0});
   anim.fire();
   for (let j = 0; j < 6; j++) { _pv.copy(aim).multiplyScalar((30 + Math.random() * 35) * k).add(tmp2.set((Math.random() - .5) * 9, (Math.random() - .5) * 9, (Math.random() - .5) * 9)); spark(b.position, path === 'storm' ? (j % 3 ? 0x64d9ff : 0xffffff) : (j % 3 ? 0xff7a21 : 0xffe49e), _pv, (2 + Math.random() * 4) * k, .25 + Math.random() * .35); }
 }
 
+// 적 피해 공통 처리. 처치되면 true
+function damageEnemy(e, dmg, color, quiet = false) {
+  if (!e.parent) return false;
+  e.userData.hp -= dmg;
+  if (!quiet) burst(e.position, color || 0xffa54c, 10, 20, Math.min(fxScale(), 1.5));
+  if (e.userData.hp <= 0) { killEnemy(e); return true; }
+  return false;
+}
+const fwdTmp = new T.Vector3();
+const skills = createSkillSystem({scene, camera, player,
+  enemies: () => enemies, boss: () => boss, damageEnemy, damageBoss: (d, at) => { if (boss) damageBoss(d, at); },
+  boltDamage: () => boltDamage(level, path, rank), burst, spark,
+  shake: a => { shakeAmp = Math.max(shakeAmp, a); }, hitStop: t => { hitStopT = Math.max(hitStopT, t); }, slowmo: (t, k) => { slowT = t; slowK = k; },
+  forward: () => fwdTmp.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)),
+  aimPoint: d => { const c = camera.getWorldDirection(new T.Vector3()); let far = d;
+    for (const e of enemies) { tmp2.subVectors(e.position, camera.position); const t = tmp2.dot(c); if (t > camDistNow && t < far && tmp2.lengthSq() - t * t < 900) far = t; }
+    if (boss) { tmp2.subVectors(boss.position, camera.position); const t = tmp2.dot(c); if (t > camDistNow && t < far + 150 && tmp2.lengthSq() - t * t < (boss.userData.radius + 20) ** 2) far = t; }
+    return camera.position.clone().addScaledVector(c, far); },
+  banner: (t, sub, sec) => banner(t, sub, sec), ult: () => ult, setUlt: v => { ult = v; },
+  clearBoltsNear: (pos, r) => { for (const list of [enemyBolts, bossBolts]) for (let i = list.length - 1; i >= 0; i--) if (list[i].o.position.distanceTo(pos) < r) { spark(list[i].o.position, 0xfff1c1, _pv.set(0, 0, 0), 6, .3); scene.remove(list[i].o); list.splice(i, 1); } },
+});
+function castSkill(slot) {
+  if (!playing || paused || over || coronation >= 0) return;
+  const st = stage(), sk = skillFor(path, slot, st);
+  if (!sk) { if (st < SLOT_UNLOCK[slot]) banner('아직 잠긴 스킬', `${SLOT_UNLOCK[slot]}단계 진화 후 해금`, 1); return; }
+  skills.cast(slot, path, st);
+}
 function updateBolts(dt) {
   for (let i = bolts.length - 1; i >= 0; i--) {
     const b = bolts[i]; b.prev.copy(b.o.position); b.o.position.addScaledVector(b.v, dt); b.life -= dt;
     if (Math.random() < .7) { _pv.copy(b.v).multiplyScalar(-.08).add(tmp2.set((Math.random() - .5) * 7, (Math.random() - .5) * 7, (Math.random() - .5) * 7)); spark(b.o.position, path === 'storm' ? 0x77dfff : 0xff8a2a, _pv, (2 + Math.random() * 3) * fxScale(), .3 + Math.random() * .25); }
-    let hit = null; const r2 = b.r * b.r;
-    for (const e of enemies) { const rr = b.r + 2 * ((e.userData.grow || 1) - 1); if (segDistSq(e.position, b.prev, b.o.position) < rr * rr) { hit = e; break; } }
-    if (!hit && boss) { const rr = b.r + boss.userData.radius; if (segDistSq(boss.position, b.prev, b.o.position) < rr * rr) { damageBoss(b.dmg, b.o.position); b.life = 0; } }
-    if (hit) { hit.userData.hp -= b.dmg; burst(b.o.position, path === 'storm' ? 0x7de6ff : 0xffa54c, 14, 22, Math.min(fxScale(), 1.5)); if (hit.userData.hp <= 0) killEnemy(hit); b.life = 0; }
+    let hit = null;
+    for (const e of enemies) { if (b.hitSet?.has(e)) continue; const rr = b.r + 2 * ((e.userData.grow || 1) - 1); if (segDistSq(e.position, b.prev, b.o.position) < rr * rr) { hit = e; break; } }
+    if (!hit && boss) { const rr = b.r + boss.userData.radius; if (segDistSq(boss.position, b.prev, b.o.position) < rr * rr) { damageBoss(b.dmg, b.o.position); skills.onBoltHit(path, stage(), null, b.o.position, b.dmg); b.life = 0; } }
+    if (hit) {
+      const at = b.o.position.clone(); damageEnemy(hit, b.dmg, path === 'storm' ? 0x7de6ff : 0xffa54c);
+      skills.onBoltHit(path, stage(), hit.parent ? hit : null, at, b.dmg);
+      // 화염 3단계: 관통(남은 관통 수만큼 계속 날아감)
+      if (b.pierce > 0) { b.pierce--; (b.hitSet ||= new Set()).add(hit); } else b.life = 0;
+    }
     if (b.o.position.y < ground(b.o.position.x, b.o.position.z)) b.life = 0;
     if (b.life <= 0) { scene.remove(b.o); bolts.splice(i, 1); }
   }
@@ -359,8 +450,9 @@ function updateBolts(dt) {
 function updateEnemies(dt) {
   const st = stage(), sc = scaleNow, cap = STAGE.enemyCap[st - 1];
   // 무리 스폰: 초당 스폰 속도만큼 예산 적립 → 4마리 이상 모이면 4~6마리 무리로
-  spawnBudget = Math.min(6, spawnBudget + STAGE.spawnRate[st - 1] * dt);
-  if (spawnBudget >= 4 && enemies.length + 4 <= cap && coronation < 0) { const n = Math.min(Math.floor(spawnBudget), cap - enemies.length, 6); spawnGroup(n); spawnBudget -= n; }
+  const maxGroup = st >= 4 ? 9 : st === 3 ? 7 : 6;
+  spawnBudget = Math.min(maxGroup, spawnBudget + STAGE.spawnRate[st - 1] * dt);
+  if (spawnBudget >= 4 && enemies.length + 4 <= cap && coronation < 0) { const n = Math.min(Math.floor(spawnBudget), cap - enemies.length, maxGroup); spawnGroup(n); spawnBudget -= n; }
   shotTokens = Math.min(STAGE.shooters[st - 1], shotTokens + STAGE.shooters[st - 1] / 3 * dt);
   dashTimer -= dt;
   const contactR = 3.2 * sc + 4 + 2 * (ENEMY_GROW[st - 1] - 1);
@@ -437,10 +529,15 @@ function loop() {
     for (const at of [0, .5, 1]) if (t0 <= at && coronationT > at) burst(player.position, 0xffdc88, 100, 35, fxScale());
     coronation -= raw; if (coronation < 0) coronation = -1;
   }
+  if (hitStopT > 0) { hitStopT -= raw; dt = 0; }
+  if (slowT > 0) { slowT -= raw; dt *= slowK; }
   if (playing && !paused && !over) {
+    if ((comboTimer -= dt) <= 0 && combo) { combo = 0; $('#combo').classList.remove('on'); }
+    if (stage() >= 4 && coronation < 0) ult = Math.min(100, ult + ULT_PER_SEC * dt);
+    skills.update(dt, raw);
     runTime += dt; invuln = Math.max(0, invuln - dt); hitTimer -= dt;
     const f = updateFlight(dt); boosting = f.boosting;
-    fireBreath(dt, f.firing); updateEnemies(dt); if (!over) updateBoss(dt); if (!over) updateBolts(dt);
+    fireBreath(dt, f.firing); updateEnemies(dt); if (!over) updateBoss(dt); if (!over) updateElite(dt); if (!over) updateBolts(dt);
   }
   if (bannerTimer > 0 && (bannerTimer -= raw) <= 0) $('#banner').classList.remove('on');
   updateParticles(raw);
@@ -451,12 +548,15 @@ function loop() {
   if (mdl && mdl.userData.rig) { anim.applyUniforms(mdl.userData.rig); anim.applyPose(mdl, mdl.userData.unit); }
   else player.userData.wings.forEach((w, i) => w.rotation.z = (i ? -1 : 1) * (.05 - anim.wingUp * .45));
   updateCamera(raw, boosting);
+  if (shakeAmp > .01) { const a = shakeAmp * (1.2 + .6 * scaleNow); camera.position.add(tmp.set((Math.random() - .5) * a, (Math.random() - .5) * a, (Math.random() - .5) * a)); shakeAmp *= Math.exp(-7 * raw); }
+  if (playing && !over) updateSkillHud();
   tod.update(raw, player.position); terrain.setSunDirection(tod.sunDirection); terrain.update(camera.position, raw); clouds.update(raw, camera, tod);
   renderer.render(scene, camera);
 }
 
 // 첫 무리 2개를 시작 방향(-Z) 앞에 배치
 for (let i = 0; i < 2; i++) spawnGroup(5);
+document.body.classList.toggle('storm', path === 'storm');
 refresh(); loop();
 loadManifest().then(() => loadModel('dragon_hatchling', {length: 9, rig: true})).then(m => {
   if (!m) return; player.children.forEach(c => c.visible = false); player.add(m); player.userData.model = m; setDragonPathVisual(m, path);
@@ -474,4 +574,4 @@ loadManifest().then(async () => {
 if (touch.isTouch) document.querySelector('.help')?.remove();
 // 디버그·테스트 훅 (읽기 전용 상태)
 window.__game = {camera, get hud() { return {level, xp, hp, maxHp, kills, path, paused, over, playing, yaw, pitch, coins, rank, rankXp, coronation, gliding, flySpeed, runTime, stage: stage(), invuln}; },
-  get player() { return player; }, anim, get enemies() { return enemies; }, get enemyBolts() { return enemyBolts; }, get boss() { return boss; }, spawnBoss, terrain, tod, touch, start};
+  get player() { return player; }, anim, get enemies() { return enemies; }, get enemyBolts() { return enemyBolts; }, get boss() { return boss; }, spawnBoss, skills, castSkill, get combo() { return combo; }, get ult() { return ult; }, fillUlt() { ult = 100; }, spawnElite, get elite() { return elite; }, terrain, tod, touch, start};

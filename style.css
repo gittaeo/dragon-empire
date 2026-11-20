@@ -161,3 +161,45 @@ body.hurt .vignette{animation:hurt .35s}
   #hud .mission{transform:scale(.7);transform-origin:top right}
   #bossbar{top:12px}
 }
+
+/* ---------- M2: 스킬 바 · 콤보 ---------- */
+#skills{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);display:flex;gap:10px;align-items:flex-end}
+#skills .slot{--cd:0;position:relative;width:64px;height:64px;border-radius:6px;background:linear-gradient(180deg,rgba(30,24,26,.88),rgba(10,11,18,.88));border:1px solid rgba(233,196,106,.45);box-shadow:inset 0 0 14px rgba(233,196,106,.1),0 6px 18px rgba(0,0,0,.45);display:grid;place-items:center;overflow:hidden}
+#skills .slot::after{content:"";position:absolute;inset:0;background:conic-gradient(rgba(5,6,10,.78) calc(var(--cd)*360deg),transparent 0);pointer-events:none}
+#skills .slot.ult{width:78px;height:78px;border-color:var(--gold);box-shadow:0 0 18px rgba(255,201,77,.25),inset 0 0 18px rgba(233,196,106,.18)}
+#skills .slot.ready{border-color:var(--gold-hi);box-shadow:0 0 16px rgba(255,201,77,.55),inset 0 0 16px rgba(255,201,77,.25)}
+#skills .slot.ult.ready{animation:ultpulse 1.2s infinite}
+@keyframes ultpulse{50%{box-shadow:0 0 30px rgba(255,201,77,.9),inset 0 0 24px rgba(255,201,77,.4)}}
+#skills .slot.locked{opacity:.45;filter:grayscale(.8)}
+#skills .ico{font-style:normal;font-size:26px;color:var(--gold);text-shadow:0 0 12px rgba(255,122,26,.8);margin-top:-8px}
+#skills .slot.ult .ico{font-size:32px}
+#skills kbd{position:absolute;top:3px;left:3px;margin:0;min-width:0;padding:0 4px;font-size:8px;z-index:2}
+#skills em{position:absolute;bottom:4px;left:2px;right:2px;font:700 9px/1.1 var(--body);font-style:normal;color:var(--text);text-align:center;z-index:2;text-shadow:0 1px 3px #000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.storm #skills .ico{color:var(--storm);text-shadow:0 0 12px rgba(95,211,255,.8)}
+#combo{position:fixed;right:9vw;top:42%;text-align:right;opacity:0;transition:opacity .3s;pointer-events:none}
+#combo.on{opacity:1}
+#combo b{display:block;font:900 54px/1 var(--head);background:linear-gradient(180deg,#fff6d8,#e9c46a 60%,#c9862f);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 10px rgba(255,122,26,.6))}
+#combo small{display:block;font:900 13px var(--head);letter-spacing:.3em;color:var(--ember);text-shadow:0 0 10px rgba(255,122,26,.7)}
+#combo.pop b{animation:cpop .25s ease-out}
+@keyframes cpop{0%{transform:scale(1.45)}100%{transform:scale(1)}}
+#combo.max b{background:linear-gradient(180deg,#fff,#ffd27a 50%,#ff5a1a);-webkit-background-clip:text;background-clip:text}
+#combo.max small{font-size:22px;color:#fff1c1}
+.help{bottom:12px;padding:6px 14px;font-size:10px}
+#touch-ui .tc-skills{position:absolute;right:max(178px,calc(env(safe-area-inset-right) + 178px));bottom:max(18px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px;pointer-events:auto}
+#touch-ui .tc-skills button{width:56px;height:56px;border-radius:12px}
+#touch-ui .tc-skills .tc-ult{width:64px;height:64px;border-radius:50%;border-color:var(--gold);box-shadow:0 0 16px rgba(255,201,77,.45)}
+@media(max-width:760px){#skills{bottom:auto;top:auto;bottom:calc(env(safe-area-inset-bottom) + 160px);gap:6px}#skills .slot{width:48px;height:48px}#skills .slot.ult{width:56px;height:56px}#skills em{display:none}#combo{right:16px;top:36%}#combo b{font-size:38px}}
+@media (pointer:coarse){#skills [data-slot=fire],#skills [data-slot=boost]{display:none}#skills{left:16px;transform:none;bottom:auto;top:200px;flex-direction:column}}
+/* 터치: 스킬 바는 숨기고 S1/S2/ULT 버튼에 쿨다운 표시. 가로 모바일에서 목표·귀환 버튼이 조작 버튼을 가리지 않게 */
+#touch-ui .tc-skills button{--cd:0;position:relative;overflow:hidden}
+#touch-ui .tc-skills button::after{content:"";position:absolute;inset:0;background:conic-gradient(rgba(5,6,10,.75) calc(var(--cd)*360deg),transparent 0);pointer-events:none}
+#touch-ui .tc-skills button.locked{opacity:.4}
+@media (pointer:coarse){#skills{display:none}}
+@media (pointer:coarse) and (max-height:520px){
+  #hud .mission{top:8px;right:auto;left:50%;transform:translateX(-50%) scale(.62);transform-origin:top center;min-width:0;width:360px;text-align:center}
+  #return{top:auto;bottom:auto;top:62px;right:16px;padding:7px 12px;font-size:11px}
+  #bossbar{top:70px;width:40vw}
+  #combo{right:auto;left:22%;top:30%}
+}
+
+.overlay{overflow-x:hidden}
