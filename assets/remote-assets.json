@@ -138,6 +138,48 @@
       "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_113853_29d5a0bf-c17f-457c-a200-cd85cd7a3030.glb",
       "job": "29d5a0bf",
       "note": "Meshy7 26k tri, boss_lucerna 정면 크롭"
+    },
+    {
+      "id": "dragon_drake_src",
+      "path": "pending/models/evolution/drake_src.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_131832_d8761c1f-9021-4612-bcdd-47b34a3c8974.png",
+      "job": "d8761c1f",
+      "note": "gpt_image_2_6, evolution_lineup+해츨링 소스 참고"
+    },
+    {
+      "id": "dragon_wyrm_src",
+      "path": "pending/models/evolution/wyrm_src.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_131831_3f2cdaa6-d389-4582-b151-56cb30a6d880.png",
+      "job": "3f2cdaa6",
+      "note": "gpt_image_2_6"
+    },
+    {
+      "id": "dragon_emperor_src",
+      "path": "pending/models/evolution/emperor_src.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_131831_0bab74c4-c055-47e8-b351-77c7fe40010f.png",
+      "job": "0bab74c4",
+      "note": "gpt_image_2_6"
+    },
+    {
+      "id": "dragon_drake_glb",
+      "path": "pending/models/evolution/dragon_drake.glb",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_131936_d5340204-d5e2-4e9f-8f19-4b7c5f8e10c6.glb",
+      "job": "d5340204",
+      "note": "Meshy7 25.9k tri PBR 2048"
+    },
+    {
+      "id": "dragon_wyrm_glb",
+      "path": "pending/models/evolution/dragon_wyrm.glb",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_131938_47b96edf-f735-4036-b4ec-bc0127ef8d55.glb",
+      "job": "47b96edf",
+      "note": "Meshy7 25.9k tri PBR 2048"
+    },
+    {
+      "id": "dragon_emperor_glb",
+      "path": "pending/models/evolution/dragon_emperor.glb",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_131941_e4f6f3a8-0133-4092-876e-26c5ce96dee1.glb",
+      "job": "e4f6f3a8",
+      "note": "Meshy7 25.9k tri PBR 2048"
     }
   ]
 }

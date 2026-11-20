@@ -9,6 +9,7 @@ import {loadEnvAssets} from './world/env-assets.js';
 import {createTouchControls} from './touch.js';
 import {loadManifest, loadModel, setDragonPathVisual} from './assets-loader.js';
 import {FlightAnimator} from './dragon-anim.js';
+import {createAudio} from './audio.js';
 import {createSkillSystem, skillFor, fireTrait, SLOT_UNLOCK, COMBO_WINDOW, comboLabel, ULT_PER_KILL, ULT_PER_SEC} from './skills.js';
 
 const $ = s => document.querySelector(s), canvas = $('#world');
@@ -61,6 +62,14 @@ let coronation = -1, coronationT = 0, ult = 0, spawnBudget = 0, dashTimer = 6, s
 const store = {get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} }};
 let coins = Number(store.get('dragonEmpireCoins') || 0); $('#coins').textContent = coins;
 const stage = () => stageForLevel(level);
+// ---------- 사운드 (Codex audio.js). 위치는 플레이어 기준 상대 좌표를 카메라 방향으로 돌려 좌우 팬이 맞게 ----------
+const audio = createAudio();
+function sfx(name, pos, volume = 1) {
+  if (!pos) return audio.play(name, {volume});
+  const rx = pos.x - player.position.x, ry = pos.y - player.position.y, rz = pos.z - player.position.z, c = Math.cos(yaw), sn = Math.sin(yaw);
+  return audio.play(name, {x: rx * c - rz * sn, y: ry, z: -(rx * sn + rz * c), volume});
+}
+let ambStage = 0;
 // 테스트 전용: ?lv=20&path=storm 으로 해당 레벨에서 시작 (Lv30은 대관식 없이 엠페러 상태)
 { const lv = Math.round(+params.get('lv') || 1); if (lv > 1) { level = Math.min(MAX_LEVEL, lv); if (level >= 10) path = params.get('path') === 'storm' ? 'storm' : 'flame'; hp = maxHpForLevel(level) * 1.1; scaleNow = stageScale(level); camDistNow = STAGE.camDist[stageForLevel(level) - 1]; } }
 
@@ -95,7 +104,7 @@ function spawnElite() {
   e.scale.multiplyScalar(1.6); u.hp *= 8; u.xp = 12; u.elite = true; u.speed = .9; u.grow = (u.grow || 1) * 1.6;
   e.traverse(o => { if (!o.isMesh) return; o.material = o.material.clone(); o.material.emissive = ELITE_GOLD.clone(); o.material.emissiveIntensity = .55; });
   for (let i = 0; i < 6; i++) makeEnemy(_c.x + (Math.random() - .5) * 40, _c.y + (Math.random() - .5) * 15, _c.z + (Math.random() - .5) * 40, 'moth');
-  elite = e; const ang = Math.atan2(-(_c.x - player.position.x), -(_c.z - player.position.z)) - yaw, side = Math.sin(ang) > .3 ? '왼쪽' : Math.sin(ang) < -.3 ? '오른쪽' : Math.cos(ang) > 0 ? '정면' : '후방';
+  elite = e; sfx('elite_spawn', e.position); const ang = Math.atan2(-(_c.x - player.position.x), -(_c.z - player.position.z)) - yaw, side = Math.sin(ang) > .3 ? '왼쪽' : Math.sin(ang) < -.3 ? '오른쪽' : Math.cos(ang) > 0 ? '정면' : '후방';
   banner('황금 등불 대장 출현', `${side} 하늘 · 처치 시 경험치 대량·생명력·ULT 충전`, 2.6);
 }
 function updateElite(dt) {
@@ -115,7 +124,7 @@ function spawnBoss() {
   const maxHpB = Math.round(20000 * (1 + .1 * rank));
   o.userData = {hp: maxHpB, maxHp: maxHpB, radius: 24, phase: 0, volleyCd: 4, summonCd: 10, orbit: 1, wings: []};
   o.traverse(c => { if (c.name === 'wing') o.userData.wings.push(c); });
-  scene.add(o); boss = o;
+  scene.add(o); boss = o; sfx('boss_roar', o.position);
   banner('등불의 여왕 루세르나', '수천 개의 등불이 하늘을 덮습니다', 3);
   $('#bossbar').hidden = false; refreshBoss();
 }
@@ -143,7 +152,7 @@ function updateBoss(dt) {
   if (u.wings.length) { u.wings[0].rotation.z = Math.sin(u.phase * 2) * .25; u.wings[1].rotation.z = -u.wings[0].rotation.z; }
   // 등불 부채꼴 탄막(7발) 3.2초마다, 나방 4마리 소환 14초마다
   if ((u.volleyCd -= dt) <= 0 && coronation < 0) {
-    u.volleyCd = 3.2; tmp2.subVectors(player.position, boss.position).normalize();
+    u.volleyCd = 3.2; sfx('boss_volley', boss.position, .8); tmp2.subVectors(player.position, boss.position).normalize();
     for (let i = -3; i <= 3; i++) {
       const o = mesh(enemyBoltGeometry, lanternBoltMaterial); o.position.copy(boss.position); o.scale.setScalar(2.2);
       const v = tmp2.clone().applyAxisAngle(T.Object3D.DEFAULT_UP, i * .12).multiplyScalar(55);
@@ -274,18 +283,18 @@ function updateSkillHud() {
 function banner(title, sub = '', sec = 2.2) { $('#banner b').textContent = title; $('#banner small').textContent = sub; $('#banner').classList.add('on'); bannerTimer = sec; }
 function hurt(amount) {
   if (invuln > 0 || coronation >= 0 || over) return;
-  amount *= 1 - skills.damageReduce(); hp -= amount; refresh(); document.body.classList.remove('hurt'); void document.body.offsetWidth; document.body.classList.add('hurt');
+  amount *= 1 - skills.damageReduce(); hp -= amount; sfx('player_hurt', null, .8); refresh(); document.body.classList.remove('hurt'); void document.body.offsetWidth; document.body.classList.add('hurt');
   if (hp <= 0) finish(level >= MAX_LEVEL ? 'fall' : 'fail');
 }
 
 // ---------- 진행 ----------
 let prewarmed = false;
-function start() { if (!prewarmed) { prewarmed = true; try { skills.prewarm(renderer, camera); } catch (e) { console.warn(e); } } playing = true; paused = false; $('#start').hidden = true; $('#hud').hidden = false; touch.setVisible(true); refresh(); }
-function pause() { paused = true; clearInput(); touch.setVisible(false); $('#start').hidden = false; $('#begin').textContent = '비행 계속하기 ↗'; refresh(); }
+function start() { sfx('ui_click'); ambStage = stage(); audio.startAmbience(ambStage); if (!prewarmed) { prewarmed = true; try { skills.prewarm(renderer, camera); } catch (e) { console.warn(e); } } playing = true; paused = false; $('#start').hidden = true; $('#hud').hidden = false; touch.setVisible(true); refresh(); }
+function pause() { audio.stopAmbience(); paused = true; clearInput(); touch.setVisible(false); $('#start').hidden = false; $('#begin').textContent = '비행 계속하기 ↗'; refresh(); }
 $('#begin').onclick = start; $('#restart').onclick = () => location.reload();
 $('#return').onclick = () => finish('return'); $('#pause-return').onclick = () => finish('return');
 document.querySelectorAll('[data-path]').forEach(b => b.onclick = () => {
-  if (over) return;
+  if (over) return; sfx('ui_click');
   path = b.dataset.path; for (const m of stageModels) if (m) setDragonPathVisual(m, path); document.body.classList.toggle('storm', path === 'storm');
   player.userData.skin.color.set(pathColor(0xda5639, 0x477fbc)); player.userData.wing.color.set(pathColor(0xffb653, 0x8fd5ed));
   refresh(); hp = maxHp; $('#choice').hidden = true; paused = false; touch.setVisible(true); refresh();
@@ -293,7 +302,7 @@ document.querySelectorAll('[data-path]').forEach(b => b.onclick = () => {
 });
 function finish(kind) {
   if (over) return; over = true; playing = false; touch.setVisible(false); document.exitPointerLock?.();
-  skills.reset(); $('#combo').classList.remove('on');
+  audio.stopAmbience(); skills.reset(); $('#combo').classList.remove('on');
   for (const b of bolts) scene.remove(b.o); bolts.length = 0; for (const b of enemyBolts) scene.remove(b.o); enemyBolts.length = 0; for (const b of bossBolts) scene.remove(b.o); bossBolts.length = 0; $('#bossbar').hidden = true;
   const reward = crystalReward({level, kills, rank, lateKills, boss: bossKills > 0}); coins += reward; store.set('dragonEmpireCoins', coins); $('#coins').textContent = coins;
   const emperor = level >= MAX_LEVEL, mm = Math.floor(runTime / 60), ss = String(Math.floor(runTime % 60)).padStart(2, '0');
@@ -304,6 +313,7 @@ function finish(kind) {
   $('#return').hidden = true; $('#result').hidden = false;
 }
 function startCoronation() {
+  sfx('coronation');
   coronation = 4; coronationT = 0; hp = maxHp; invuln = 3; ult = 100;
   for (const e of [...enemies]) if (e.position.distanceTo(player.position) < 90) killEnemy(e);
   banner('드래곤 엠페러 대관', 'ULT 충전 완료 · 황제의 하늘이 열립니다', 3.5); refresh();
@@ -312,6 +322,7 @@ function killEnemy(e) {
   combo = comboTimer > 0 ? combo + 1 : 1; comboTimer = COMBO_WINDOW; showCombo();
   if (stage() >= 4 && coronation < 0) ult = Math.min(100, ult + ULT_PER_KILL);
   if (e.userData.elite) { elite = null; for (let i = 0; i < 3; i++) burst(e.position, i ? 0xffd27a : 0xffffff, 90, 50, 2.2); shakeAmp = Math.max(shakeAmp, .9); hitStopT = Math.max(hitStopT, .09); hp = maxHp; ult = Math.min(100, ult + 30); banner('황금 등불 대장 격파!', '생명력 회복 · ULT +30', 2); }
+  sfx(e.userData.elite ? 'multikill' : 'kill', e.position, .8);
   removeEnemy(e); burst(e.position, pathColor(0xffa33d, 0x66ddff), 40, 30, Math.min(fxScale(), 1.6)); kills++;
   hp = Math.min(maxHp, hp + maxHp * .02);
   if (level >= MAX_LEVEL) {
@@ -322,8 +333,9 @@ function killEnemy(e) {
   }
   const beforeLevel = level, beforeStage = stage();
   ({level, xp} = addExperience({level, xp}, Math.round(killExperience(level) * (e.userData.xp || 1) * XP_TEST_MUL)));
-  if (level > beforeLevel) { refresh(); hp = Math.min(maxHp, hp + maxHp * .15); }
+  if (level > beforeLevel) { refresh(); hp = Math.min(maxHp, hp + maxHp * .15); if (stage() === beforeStage) sfx('levelup'); }
   if (stage() > beforeStage) {
+    if (stage() < 4) sfx('evolve'); ambStage = stage(); audio.startAmbience(ambStage);
     refresh(); hp = maxHp; invuln = 2; burst(player.position, 0xffdc88, 100, 35, fxScale());
     if (stage() < 4) banner(STAGE_NAMES()[stage() - 1] + '(으)로 진화', '생명력 회복 · 2초 무적');
   }
@@ -392,12 +404,18 @@ function updateFlight(dt) {
   // 지형 최저 고도: 즉시 스냅하지 않고 빠르게 따라 올라가되 몸 여백(2.5×scale) 이상 파고들지 않음
   const hl = Math.hypot(dir.x, dir.z) || 1, floorY = clearanceHeight(player.position.x, player.position.z, sc, dir.x / hl, dir.z / hl);
   if (player.position.y < floorY) player.position.y = Math.max(player.position.y + (floorY - player.position.y) * (1 - Math.exp(-14 * dt)), floorY - 2.5 * sc);
+  // 아치·탑·떠 있는 섬 충돌 (Codex world/obstacles.js): 겹치면 법선 방향으로 밀어냄, 최대 3회 반복
+  if (terrain.obstacleAt) for (let i = 0; i < 3; i++) {
+    const o = terrain.obstacleAt(player.position.x, player.position.y, player.position.z, 3.2 * sc); if (!o || !o.hit) break;
+    player.position.x += o.normal.x * o.depth; player.position.y += o.normal.y * o.depth; player.position.z += o.normal.z * o.depth;
+    if (i === 0 && flySpeed > base * .8) { flySpeed *= .7; shakeAmp = Math.max(shakeAmp, .25); }
+  }
   player.position.x = T.MathUtils.clamp(player.position.x, -2700, 2700); player.position.z = T.MathUtils.clamp(player.position.z, -2700, 2700);
   // 급강하 후 끌어올리기 → 충격파 (3단계부터)
   shockCd -= dt;
   if (st >= 3 && pitch < -.45 && flySpeed > base * .9) diveTime += dt;
   else if (diveTime > .6 && pitch > -.15 && shockCd <= 0) {
-    diveTime = 0; shockCd = 2.5; const r = 16 + 7 * sc;
+    diveTime = 0; shockCd = 2.5; const r = 16 + 7 * sc; sfx('dive_shockwave');
     skills.ring(player.position, r * 1.3, pathColor(0xffd27a, 0xbff6ff), .5); burst(player.position, pathColor(0xffa33d, 0x9ff0ff), 70, 50, fxScale());
     shakeAmp = Math.max(shakeAmp, .8); banner('급강하 충격파', '', .8);
     let killed = 0; for (const e of [...enemies]) if (e.position.distanceTo(player.position) < r + 2 * ((e.userData.grow || 1) - 1)) killed += damageEnemy(e, boltDamage(level, path, rank) * 4) ? 1 : 0;
@@ -424,7 +442,7 @@ function fireBreath(dt, firing) {
   aim.subVectors(aimPoint, b.position).normalize();
   const speed = 140 * k;
   bolts.push({o: b, prev: b.position.clone(), v: aim.clone().multiplyScalar(speed), life: Math.min(3, 650 / speed), dmg: boltDamage(level, path, rank), r: 4.5 + .55 * (.6 + .4 * s), pierce: fireTrait(path, stage()).pierce || 0});
-  anim.fire();
+  anim.fire(); sfx(path === 'storm' ? 'breath_storm' : 'breath_flame', null, .55);
   for (let j = 0; j < 6; j++) { _pv.copy(aim).multiplyScalar((30 + Math.random() * 35) * k).add(tmp2.set((Math.random() - .5) * 9, (Math.random() - .5) * 9, (Math.random() - .5) * 9)); spark(b.position, path === 'storm' ? (j % 3 ? 0x64d9ff : 0xffffff) : (j % 3 ? 0xff7a21 : 0xffe49e), _pv, (2 + Math.random() * 4) * k, .25 + Math.random() * .35); }
 }
 
@@ -432,7 +450,7 @@ function fireBreath(dt, firing) {
 function damageEnemy(e, dmg, color, quiet = false) {
   if (!e.parent) return false;
   e.userData.hp -= dmg;
-  if (!quiet) burst(e.position, color || 0xffa54c, 10, 20, Math.min(fxScale(), 1.5));
+  if (!quiet) { burst(e.position, color || 0xffa54c, 10, 20, Math.min(fxScale(), 1.5)); sfx('hit', e.position, .6); }
   if (e.userData.hp <= 0) { killEnemy(e); return true; }
   return false;
 }
@@ -440,7 +458,7 @@ const fwdTmp = new T.Vector3();
 const skills = createSkillSystem({scene, camera, player,
   enemies: () => enemies, boss: () => boss, damageEnemy, damageBoss: (d, at) => { if (boss) damageBoss(d, at); },
   boltDamage: () => boltDamage(level, path, rank), burst, spark,
-  shake: a => { shakeAmp = Math.max(shakeAmp, a); }, hitStop: t => { hitStopT = Math.max(hitStopT, t); }, slowmo: (t, k) => { slowT = t; slowK = k; },
+  shake: a => { shakeAmp = Math.max(shakeAmp, a); }, hitStop: t => { if (hitStopT <= 0) sfx('multikill', null, .7); hitStopT = Math.max(hitStopT, t); }, slowmo: (t, k) => { slowT = t; slowK = k; },
   forward: () => fwdTmp.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)),
   aimPoint: d => { const c = camera.getWorldDirection(new T.Vector3()); let far = d;
     for (const e of enemies) { tmp2.subVectors(e.position, camera.position); const t = tmp2.dot(c); if (t > camDistNow && t < far && tmp2.lengthSq() - t * t < 900) far = t; }
@@ -453,7 +471,7 @@ function castSkill(slot) {
   if (!playing || paused || over || coronation >= 0) return;
   const st = stage(), sk = skillFor(path, slot, st);
   if (!sk) { if (st < SLOT_UNLOCK[slot]) banner('아직 잠긴 스킬', `${SLOT_UNLOCK[slot]}단계 진화 후 해금`, 1); return; }
-  skills.cast(slot, path, st);
+  if (skills.cast(slot, path, st)) sfx(({meteor: 'skill_meteor', tornado: 'skill_tornado', strike: 'skill_lightning', cloud: 'skill_lightning', aura: 'skill_shield', pillars: path === 'storm' ? 'ult_storm' : 'ult_flame'})[sk.kind] || 'ui_click');
 }
 function updateBolts(dt) {
   for (let i = bolts.length - 1; i >= 0; i--) {
@@ -530,6 +548,7 @@ function updateCamera(dt, boosting) {
   // 드래곤→카메라 사이 8점 검사: 능선에 가리면 카메라를 앞으로 당김(상하 무제한 피치 유지)
   let safe = 1;
   for (let i = 1; i <= 8; i++) { tmp.lerpVectors(pivot, desired, i / 8); if (tmp.y < ground(tmp.x, tmp.z) + 2 + .6 * s) { safe = (i - 1) / 8; break; } }
+  if (terrain.raycastObstacles) { const hit = terrain.raycastObstacles(pivot, desired); if (hit && hit.fraction < safe) safe = Math.max(0, hit.fraction - .05); }
   if (safe < 1) desired.lerpVectors(pivot, desired, Math.max(safe, 5.5 * s / dist));
   desired.y = Math.max(desired.y, ground(desired.x, desired.z) + 3);
   camera.position.lerp(desired, 1 - Math.exp(-(safe < 1 ? 25 : 10) * dt));
