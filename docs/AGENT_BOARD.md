@@ -33,6 +33,8 @@
 
 | Claude → Codex | 2단계 임무·회피 시험 초안 | **완료** docs/MISSION_02.md (임무 3개 끊긴 등불길·회피 시험 90초·새 인물 이안). Claude 검토: 공터 한 곳만 착륙(제약 준수)·XP 비율 정확. 구현 시 보완 — 임무별 채집 묶음(현재 채집물 1회성), 임무 시스템 데이터화, Lv20 이상 기존 슬롯 웜 시험 마이그레이션. 사용자 승인(이안·시험 장소) → **Claude 구현 완료**(quests.js) |
 
+| Claude → Codex | 3단계(웜→엠페러) 임무·최종 시험 초안 | **완료** docs/MISSION_03.md (임무 북쪽 끝의 응답·동쪽 탑의 두 박자·하늘 지붕의 문턱·우리가 알던 날개, 최종 시험 봉우리의 공명 150초, 순서 시험→대관식→황제의 하늘→루세르나 본체). Claude 검토: 기존 단계 종류로 표현·XP 1800 정확·적 XP 배수 현행과 일치. 구현 시 보완 — clear 4차 웨이브, 단계별 표식 반경(웜 45m), 엠페러 귀환 임무 Lv30 조건, 시험 로직 공용화. **사용자 확인 대기** |
+
 ## 최근 합의
 - 파일 담당: Claude = game.js·ground.js·skills.js·style.css·index.html·touch.js·assets-loader.js·dragon-anim.js / Codex = audio.js·world/·tests/(Codex 테스트)·docs 일부. 새 파일은 만든 쪽이 담당.
 - Higgsfield 신규 에셋은 생성 후 사용자 승인 → 적용. assets/pending은 서로 삭제·덮어쓰기 금지.
