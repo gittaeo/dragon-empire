@@ -5,7 +5,11 @@ import {MISSION01} from './mission01.js';
 
 // ---------- 순수 데이터·함수 (단위 테스트 대상) ----------
 export const ZONE = {x: -116.5, z: 1410, r: 220, name: '풍향탑 공터'}; // 스폰 앞 강가의 평평한 공터
-export const SAVE_KEY = 'dragonEmpireWorld', SAVE_VERSION = 1;
+export const SAVE_KEY = 'dragonEmpireWorld', SAVE_VERSION = 2, ACTIVE_SLOT_KEY = 'dragonEmpireActiveSlot', MAX_SLOTS = 3;
+// 저장 슬롯: 슬롯 1은 기존 키 그대로(이전 저장 자동 이어받기), 슬롯 2·3은 접미사. 용의 결정(dragonEmpireCoins)은 슬롯 공용(미정 → 현행 유지)
+export const slotKey = n => n <= 1 ? SAVE_KEY : SAVE_KEY + '.s' + n;
+export function activeSlot(store) { const n = parseInt(store.get(ACTIVE_SLOT_KEY) || '1', 10); return n >= 1 && n <= MAX_SLOTS ? n : 1; }
+export function listSlots(store) { const out = []; for (let n = 1; n <= MAX_SLOTS; n++) { const {world, from} = loadWorld(store, n); if (from) out.push({slot: n, world}); } return out; }
 export const RECIPES = {workbench: {branch: 2, stone: 2}, kit: {branch: 1, stone: 1, shard: 1}};
 export const ITEM_NAMES = {branch: '나뭇가지', stone: '돌', shard: '숨결 파편', kit: '수리 키트'};
 // 퀘스트 단계 (HUD 문구는 mission01.js)
@@ -41,7 +45,7 @@ export function evaluateLanding(terrain, x, y, z, scale, {checkAltitude = true, 
   return {ok: true, y: groundY, slope};
 }
 
-export const emptyWorld = () => ({version: SAVE_VERSION, form: 'air', pos: null, dragonPos: null, yaw: 0, bag: {branch: 0, stone: 0, shard: 0, kit: 0}, collected: [], built: {workbench: false, tower: false}, step: 0, talked: 0, savedAt: 0});
+export const emptyWorld = () => ({version: SAVE_VERSION, dragon: null, form: 'air', pos: null, dragonPos: null, yaw: 0, bag: {branch: 0, stone: 0, shard: 0, kit: 0}, collected: [], built: {workbench: false, tower: false}, step: 0, talked: 0, savedAt: 0});
 // 저장 형식이 깨졌거나 버전이 다르면 백업 → 기본값 순서로 복구. 알 수 없는 필드는 보존
 export function migrateWorld(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -52,15 +56,21 @@ export function migrateWorld(raw) {
   w.version = SAVE_VERSION;
   return w;
 }
-export function loadWorld(store) {
-  for (const key of [SAVE_KEY, SAVE_KEY + '.bak']) {
+export function loadWorld(store, slot = 1) {
+  const KEY = slotKey(slot);
+  for (const key of [KEY, KEY + '.bak']) {
     try { const s = store.get(key); if (!s) continue; const w = migrateWorld(JSON.parse(s)); if (w) return {world: w, from: key}; } catch {}
   }
   return {world: emptyWorld(), from: null};
 }
-export function saveWorld(store, world) {
-  const prev = store.get(SAVE_KEY); if (prev) store.set(SAVE_KEY + '.bak', prev);
-  store.set(SAVE_KEY, JSON.stringify({...world, version: SAVE_VERSION, savedAt: Date.now()}));
+// 저장: 직전 값이 정상일 때만 백업으로 옮김(손상된 주 저장이 정상 백업을 덮던 문제 — Codex QA 발견),
+// 쓴 뒤 다시 읽어 확인하고 성공 여부를 돌려줌(저장소 차단·용량 부족을 숨기지 않음)
+export function saveWorld(store, world, slot = 1) {
+  const KEY = slotKey(slot), prev = store.get(KEY);
+  if (prev) { try { if (migrateWorld(JSON.parse(prev))) store.set(KEY + '.bak', prev); } catch { /* 손상된 주 저장은 백업으로 옮기지 않음 */ } }
+  const text = JSON.stringify({...world, version: SAVE_VERSION, savedAt: Date.now()});
+  store.set(KEY, text);
+  return store.get(KEY) === text;
 }
 export function canAfford(bag, recipe) { return Object.entries(recipe).every(([k, v]) => (bag[k] || 0) >= v); }
 export function pay(bag, recipe) { for (const [k, v] of Object.entries(recipe)) bag[k] -= v; }
@@ -68,7 +78,8 @@ export function pay(bag, recipe) { for (const [k, v] of Object.entries(recipe)) 
 // ---------- 실행 ----------
 export function createGround(ctx) {
   const {scene, terrain, player, store} = ctx, W = terrain.waterLevel, hAt = (x, z) => terrain.heightAt(x, z);
-  let {world, from} = loadWorld(store);
+  const slot = ctx.slot || 1;
+  let {world, from} = loadWorld(store, slot), saveFailNotified = false;
   let mode = 'air', anim = null, dragonMul = 1, saveTimer = 0, prompt = null, dialog = null, human = null;
   const hp = {pos: new T.Vector3(), vel: new T.Vector3(), yaw: 0, onGround: true, walkT: 0};
   const v = new T.Vector3(), v2 = new T.Vector3();
@@ -179,7 +190,7 @@ export function createGround(ctx) {
 
   function setStep(name) { const i = STEPS.indexOf(name); if (i > world.step) { world.step = i; save(); } }
   const step = () => STEPS[world.step];
-  function save() { if (anim) return; world.terrain = 'seed7-v1'; world.form = mode; world.pos = mode === 'human' ? {x: hp.pos.x, y: hp.pos.y, z: hp.pos.z} : null; world.dragonPos = mode !== 'air' ? {x: player.position.x, y: player.position.y, z: player.position.z} : world.dragonPos; world.yaw = ctx.getYaw(); try { saveWorld(store, world); } catch (e) { console.warn('[save]', e); } }
+  function save() { if (anim) return; world.terrain = 'seed7-v1'; world.form = mode; world.pos = mode === 'human' ? {x: hp.pos.x, y: hp.pos.y, z: hp.pos.z} : null; world.dragonPos = mode !== 'air' ? {x: player.position.x, y: player.position.y, z: player.position.z} : world.dragonPos; world.yaw = ctx.getYaw(); let ok = false; try { ok = saveWorld(store, world, slot); } catch (e) { console.warn('[save]', e); } if (!ok && !saveFailNotified) { saveFailNotified = true; ctx.banner('저장 실패', '브라우저 저장소를 쓸 수 없습니다 — 진행이 유지되지 않을 수 있습니다', 3); } else if (ok) saveFailNotified = false; return ok; }
 
   // --- 착륙
   let landCheck = {ok: false, reason: ''};
@@ -381,6 +392,7 @@ export function createGround(ctx) {
     ctx.onModeChange(mode);
   }
   return {
+    saveDragon(d) { world.dragon = d; return save(); }, slot,
     update, restore, tryLand, takeoff, toHuman, toDragon, interact, objective, save,
     get mode() { return mode; }, get animating() { return !!anim; }, get dragonMul() { return dragonMul; }, get talking() { return !!dialog; }, get busy() { return !!anim || !!dialog; }, get world() { return world; }, get loadedFrom() { return from; },
     get human() { return hp; }, get landCheck() { return landCheck; }, spots, positions: {tower: towerPos, bench: benchPos, sera: seraPos},

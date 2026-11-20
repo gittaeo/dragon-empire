@@ -10,7 +10,7 @@ import {createTouchControls} from './touch.js';
 import {loadManifest, loadModel, setDragonPathVisual} from './assets-loader.js';
 import {FlightAnimator} from './dragon-anim.js';
 import {createAudio} from './audio.js';
-import {createGround} from './ground.js';
+import {createGround, activeSlot, listSlots, MAX_SLOTS, ACTIVE_SLOT_KEY} from './ground.js';
 import {createSkillSystem, skillFor, fireTrait, SLOT_UNLOCK, COMBO_WINDOW, comboLabel, ULT_PER_KILL, ULT_PER_SEC} from './skills.js';
 
 const $ = s => document.querySelector(s), canvas = $('#world');
@@ -136,7 +136,7 @@ function damageBoss(amount, at) {
   const p = boss.position.clone(); scene.remove(boss); boss = null; bossKills++; bossCountdown = 120; $('#bossbar').hidden = true;
   for (let i = 0; i < 4; i++) burst(tmp.copy(p).add(tmp2.set((Math.random() - .5) * 40, (Math.random() - .5) * 20, (Math.random() - .5) * 40)), i % 2 ? 0xffdc88 : 0xff8a2a, 120, 55, 3);
   kills++; const before = rank; ({rank, rankXp} = addRankExperience({rank, rankXp}, 1500));
-  hp = maxHp; banner('루세르나 격파!', `위계 경험치 +1500 · 귀환 보상 +150${rank > before ? ' · 위계 ' + ROMAN(rank) : ''}`, 3.5); refresh();
+  markProgress(); hp = maxHp; banner('루세르나 격파!', `위계 경험치 +1500 · 귀환 보상 +150${rank > before ? ' · 위계 ' + ROMAN(rank) : ''}`, 3.5); refresh();
 }
 function updateBoss(dt) {
   if (!boss) {
@@ -296,12 +296,13 @@ $('#begin').onclick = start; $('#restart').onclick = () => location.reload();
 $('#return').onclick = () => finish('return'); $('#pause-return').onclick = () => finish('return');
 document.querySelectorAll('[data-path]').forEach(b => b.onclick = () => {
   if (over) return; sfx('ui_click');
-  path = b.dataset.path; for (const m of stageModels) if (m) setDragonPathVisual(m, path); document.body.classList.toggle('storm', path === 'storm');
+  markProgress(); path = b.dataset.path; for (const m of stageModels) if (m) setDragonPathVisual(m, path); document.body.classList.toggle('storm', path === 'storm');
   player.userData.skin.color.set(pathColor(0xda5639, 0x477fbc)); player.userData.wing.color.set(pathColor(0xffb653, 0x8fd5ed));
   refresh(); hp = maxHp; $('#choice').hidden = true; paused = false; touch.setVisible(true); refresh();
   burst(player.position, pathColor(0xffa326, 0x63dcff), 100, 32, fxScale());
 });
 function finish(kind) {
+  if (!TEST_RUN) gnd.saveDragon(progressSnapshot());
   if (over) return; over = true; playing = false; touch.setVisible(false); document.exitPointerLock?.();
   audio.stopAmbience(); skills.reset(); $('#combo').classList.remove('on');
   for (const b of bolts) scene.remove(b.o); bolts.length = 0; for (const b of enemyBolts) scene.remove(b.o); enemyBolts.length = 0; for (const b of bossBolts) scene.remove(b.o); bossBolts.length = 0; $('#bossbar').hidden = true;
@@ -330,7 +331,7 @@ function killEnemy(e) {
     if (rank >= 10) lateKills++;
     const before = rank; ({rank, rankXp} = addRankExperience({rank, rankXp}, Math.round(killExperience(MAX_LEVEL) * (e.userData.xp || 1))));
     if (rank > before) { hp = Math.min(maxHp, hp + maxHp * .2); burst(player.position, 0xffdc88, 90, 40, fxScale()); banner(`황제 위계 ${ROMAN(rank)}`, `피해 +${Math.min(rank, 20) * 2}%`); }
-    refresh(); return;
+    markProgress(); refresh(); return;
   }
   const beforeLevel = level, beforeStage = stage();
   ({level, xp} = addExperience({level, xp}, Math.round(killExperience(level) * (e.userData.xp || 1) * XP_TEST_MUL)));
@@ -341,6 +342,7 @@ function killEnemy(e) {
     if (stage() < 4) banner(STAGE_NAMES()[stage() - 1] + '(으)로 진화', '생명력 회복 · 2초 무적');
   }
   refresh();
+  markProgress();
   if (level >= 10 && !path) { paused = true; clearInput(); document.exitPointerLock?.(); touch.setVisible(false); $('#choice').hidden = false; }
   else if (level >= MAX_LEVEL && coronation < 0 && beforeLevel < MAX_LEVEL) startCoronation();
 }
@@ -586,6 +588,7 @@ function loop() {
     if (!grounded) { const f = updateFlight(dt); boosting = f.boosting; fireBreath(dt, f.firing); updateEnemies(dt); if (!over) updateBoss(dt); if (!over) updateElite(dt); if (!over) updateBolts(dt); }
     else { player.rotation.x *= Math.exp(-6 * raw); player.rotation.y = yaw; flySpeed = 0; animIn.fwd = animIn.side = 0; animIn.up = animIn.down = animIn.boost = false; }
     gnd.update(dt, raw, keys, touch.state, camera); updateQuestHud();
+    if (progressDirty && (progressSaveT -= raw) <= 0) { progressSaveT = 2; if (gnd.saveDragon(progressSnapshot()) === true) progressDirty = false; }
   }
   if (bannerTimer > 0 && (bannerTimer -= raw) <= 0) $('#banner').classList.remove('on');
   updateParticles(raw);
@@ -604,7 +607,19 @@ function loop() {
 }
 
 // ---------- 지상 시제품 (gnd.js): 착륙·폴리모프·채집·제작·수리·저장 ----------
-const gnd = createGround({scene, terrain, player, store, banner, burst, spark, sfx,
+// ---------- 영구 성장 (사용자 확정 2026-11-20: 성장은 영구 저장, 새로 하려면 새 슬롯) ----------
+const SLOT = activeSlot(store), TEST_RUN = ['lv', 'xp', 'boss', 'elite'].some(k => params.has(k)); // 테스트 주소는 성장을 저장하지 않음
+let progressDirty = false, progressSaveT = 0;
+const progressSnapshot = () => ({level, xp, path, rank, rankXp, kills, lateKills, bossKills, savedAt: Date.now()});
+function markProgress() { if (!TEST_RUN) progressDirty = true; }
+function applySavedDragon(d) {
+  if (!d || TEST_RUN) return;
+  level = T.MathUtils.clamp(d.level | 0, 1, MAX_LEVEL); xp = Math.max(0, d.xp | 0);
+  path = ['flame', 'storm'].includes(d.path) ? d.path : ''; rank = Math.max(0, d.rank | 0); rankXp = Math.max(0, d.rankXp | 0);
+  kills = Math.max(0, d.kills | 0); lateKills = Math.max(0, d.lateKills | 0); bossKills = Math.max(0, d.bossKills | 0);
+  hp = maxHpForLevel(level) * (path === 'storm' ? 1.1 : 1); scaleNow = stageScale(level); camDistNow = STAGE.camDist[stage() - 1];
+}
+const gnd = createGround({scene, terrain, player, store, banner, burst, spark, sfx, slot: SLOT,
   shake: a => { shakeAmp = Math.max(shakeAmp, a); }, fx: () => fxScale(), scale: () => scaleNow, path: () => path, pathColor,
   getYaw: () => yaw, getPitch: () => pitch, setYaw: v => { yaw = v; pitch = 0; }, time: () => time,
   onLandStart: () => { // 착륙 시 주변 적·탄 정리 (임시: 안전 구역에는 전투 없음)
@@ -623,7 +638,22 @@ function groundKey(code) {
 }
 let questKey = '';
 function updateQuestHud() { const t = gnd.objective(); if (t !== questKey) { questKey = t; $('#quest').textContent = t ? '임무 · ' + t : ''; $('#quest').hidden = !t; } }
+applySavedDragon(gnd.world.dragon);
 gnd.restore();
+// 시작 화면: 슬롯 목록 · 이어하기 · 새 용으로 시작
+const STAGE_SHORT = ['해츨링', '드레이크', '웜', '드래곤 엠페러'];
+function slotLabel(d) { if (!d) return '새 해츨링'; const st = stageForLevel(d.level || 1); return `Lv.${d.level} ${d.path === 'storm' ? '폭풍 ' : d.path === 'flame' ? '화염 ' : ''}${STAGE_SHORT[st - 1]}${d.rank ? ' · 위계 ' + d.rank : ''}`; }
+function renderSlots() {
+  const slots = listSlots(store), el = $('#slots'), cur = slots.find(x => x.slot === SLOT), d = cur?.world.dragon;
+  if (!TEST_RUN && d) $('#begin').innerHTML = `이어하기 · ${slotLabel(d)} <span>↗</span>`;
+  const rows = slots.map(x => `<button class="slot${x.slot === SLOT ? ' on' : ''}" data-slot="${x.slot}"><b>슬롯 ${x.slot}</b><span>${slotLabel(x.world.dragon)}</span><small>${x.world.step >= 8 ? '첫 임무 완료' : x.world.step > 0 ? '첫 임무 진행 중' : ''}</small></button>`).join('');
+  const free = [1, 2, 3].find(n => !slots.some(x => x.slot === n) && n !== SLOT);
+  el.innerHTML = rows + (free && slots.length ? `<button class="slot new" data-new="${free}"><b>+</b><span>새 용으로 시작</span><small>기존 용은 슬롯에 그대로 남습니다</small></button>` : '');
+  el.hidden = !slots.length;
+  el.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => { const n = +b.dataset.slot; if (n === SLOT) return; store.set(ACTIVE_SLOT_KEY, String(n)); location.reload(); });
+  el.querySelectorAll('[data-new]').forEach(b => b.onclick = () => { if (!confirm(`슬롯 ${b.dataset.new}에서 새 해츨링으로 시작할까요? 지금 용은 슬롯 ${SLOT}에 그대로 남습니다.`)) return; store.set(ACTIVE_SLOT_KEY, b.dataset.new); location.reload(); });
+}
+renderSlots();
 
 // 첫 무리 2개를 시작 방향(-Z) 앞에 배치
 if (gnd.mode === 'air') for (let i = 0; i < 2; i++) spawnGroup(5);

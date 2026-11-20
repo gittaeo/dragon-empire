@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {evaluateLanding, migrateWorld, loadWorld, saveWorld, emptyWorld, canAfford, pay, RECIPES, GATHER_GOAL, ZONE, SAVE_KEY} from '../ground.js';
+import {evaluateLanding, migrateWorld, loadWorld, saveWorld, emptyWorld, canAfford, pay, RECIPES, GATHER_GOAL, ZONE, SAVE_KEY, slotKey, listSlots, activeSlot, ACTIVE_SLOT_KEY} from '../ground.js';
 
 const flat = (h = 20, extra = {}) => ({waterLevel: 10, heightAt: () => h, obstacleAt: () => ({hit: false, normal: {x: 0, y: 0, z: 0}, depth: 0, obstacle: null}), raycastObstacles: () => null, ...extra});
 const memStore = () => { const m = new Map(); return {get: k => m.has(k) ? m.get(k) : null, set: (k, v) => m.set(k, String(v)), m}; };
@@ -51,4 +51,24 @@ test('landing: rejected when the dragon body overlaps a placed prop (wind tower)
   const props = [{name: '풍향탑', x: ZONE.x + 10, z: ZONE.z, r: 2.5}];
   assert.equal(evaluateLanding(flat(), ZONE.x, 40, ZONE.z, 1, {props}).ok, true);            // 해츨링 반경 4.6 → 떨어져 있음
   assert.match(evaluateLanding(flat(), ZONE.x, 120, ZONE.z, 4.5, {props}).reason, /풍향탑/); // 엠페러 반경 20.7 → 겹침
+});
+test('save: restoring from backup then saving does NOT overwrite the good backup with the corrupt main (Codex QA repro)', () => {
+  const s = memStore(), good = {...emptyWorld(), step: 5};
+  s.set(SAVE_KEY, '{corrupt'); s.set(SAVE_KEY + '.bak', JSON.stringify(good));
+  const {world} = loadWorld(s); assert.equal(world.step, 5);
+  world.step = 6; assert.equal(saveWorld(s, world), true);
+  assert.equal(JSON.parse(s.get(SAVE_KEY + '.bak')).step, 5); // 백업은 여전히 정상 값
+  assert.equal(JSON.parse(s.get(SAVE_KEY)).step, 6);
+});
+test('save: reports failure when storage silently drops writes', () => {
+  const dead = {get: () => null, set: () => {}};
+  assert.equal(saveWorld(dead, emptyWorld()), false);
+});
+test('slots: slot 1 keeps the legacy key, others are separate; dragon progress round-trips', () => {
+  assert.equal(slotKey(1), SAVE_KEY); assert.notEqual(slotKey(2), SAVE_KEY);
+  const s = memStore(); const a = {...emptyWorld(), dragon: {level: 17, path: 'flame'}}, b = {...emptyWorld(), dragon: {level: 2, path: ''}};
+  saveWorld(s, a, 1); saveWorld(s, b, 2);
+  assert.equal(loadWorld(s, 1).world.dragon.level, 17); assert.equal(loadWorld(s, 2).world.dragon.level, 2);
+  assert.deepEqual(listSlots(s).map(x => x.slot), [1, 2]);
+  assert.equal(activeSlot(s), 1); s.set(ACTIVE_SLOT_KEY, '2'); assert.equal(activeSlot(s), 2); s.set(ACTIVE_SLOT_KEY, '9'); assert.equal(activeSlot(s), 1);
 });

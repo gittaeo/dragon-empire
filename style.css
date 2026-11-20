@@ -227,3 +227,17 @@ body[data-form=human] .help,body[data-form=landed] .help{display:none}
 @media (pointer:coarse){#ground-hud .g-help{display:none}}
 body[data-form=human] #touch-ui .tc-buttons,body[data-form=human] #touch-ui .tc-skills,body[data-form=landed] #touch-ui .tc-buttons,body[data-form=landed] #touch-ui .tc-skills{display:none}
 @media (pointer:coarse){#ground-hud .g-bag{top:auto;bottom:12px;left:50%;transform:translateX(-50%)}}
+/* 저장 슬롯 (영구 성장) */
+.slots{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 0;max-width:520px}
+.panel .slots button.slot{min-width:0;flex:1 1 150px;margin:0;padding:10px 12px;text-align:left;border-radius:4px;background:rgba(12,13,20,.6);border:1px solid rgba(233,196,106,.35);color:var(--text);box-shadow:none;font:500 12px var(--body);letter-spacing:0}
+.panel .slots button.slot b{display:block;font:700 10px var(--head);letter-spacing:.2em;color:var(--gold)}
+.panel .slots button.slot span{display:block;margin-top:4px;font-weight:700}
+.panel .slots button.slot small{display:block;margin-top:3px;font-size:10px;color:var(--text-dim)}
+.panel .slots button.slot.on{border-color:var(--gold);box-shadow:0 0 14px rgba(233,196,106,.3);background:rgba(60,44,20,.6)}
+.panel .slots button.slot.new{border-style:dashed}
+.panel .slots button.slot:hover{transform:none;filter:brightness(1.15)}
+.panel .slots button.slot span{float:none;margin-left:0}
+body:has(#start:not([hidden])) header .brand{opacity:0}
+.title{font-size:clamp(40px,5.4vw,80px)}
+.overlay{align-items:flex-start;overflow-y:auto}
+.overlay>.panel{margin-block:auto}
