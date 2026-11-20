@@ -5,6 +5,8 @@ import {MISSION01} from './mission01.js';
 
 // ---------- 순수 데이터·함수 (단위 테스트 대상) ----------
 export const ZONE = {x: -116.5, z: 1410, r: 220, name: '풍향탑 공터'}; // 스폰 앞 강가의 평평한 공터
+// 착륙장(금빛 기둥): 소품과 떨어져 해츨링~엠페러 모든 크기에서 착륙 판정 통과(경사 0.03, 스캔 결과)
+export const PAD = {x: ZONE.x + 50, z: ZONE.z};
 export const SAVE_KEY = 'dragonEmpireWorld', SAVE_VERSION = 2, ACTIVE_SLOT_KEY = 'dragonEmpireActiveSlot', MAX_SLOTS = 3;
 // 저장 슬롯: 슬롯 1은 기존 키 그대로(이전 저장 자동 이어받기), 슬롯 2·3은 접미사. 용의 결정(dragonEmpireCoins)은 슬롯 공용(미정 → 현행 유지)
 export const slotKey = n => n <= 1 ? SAVE_KEY : SAVE_KEY + '.s' + n;
@@ -33,7 +35,7 @@ export function evaluateLanding(terrain, x, y, z, scale, {checkAltitude = true, 
   if (slope > LAND.maxSlope) return {ok: false, reason: '경사가 너무 가파릅니다', slope};
   if (checkAltitude && y - center > LAND.maxAltitude * Math.max(1, scale * .6)) return {ok: false, reason: '더 낮게 내려가야 착륙할 수 있습니다', altitude: y - center};
   const groundY = Math.max(center, mx - r * .1);
-  for (const q of props) if (Math.hypot(x - q.x, z - q.z) < r + q.r) return {ok: false, reason: `${q.name || '구조물'}과 겹쳐 착륙할 수 없습니다`};
+  for (const q of props) if (Math.hypot(x - q.x, z - q.z) < r + q.r) return {ok: false, reason: `${q.name || '구조물'} 바로 옆에는 내려앉을 수 없습니다 — 금빛 기둥 쪽으로`};
   if (terrain.obstacleAt) {
     const o = terrain.obstacleAt(x, groundY + 3 * scale, z, 3.2 * scale);
     if (o.hit) return {ok: false, reason: '바위·탑에 가로막혀 공간이 부족합니다'};
@@ -95,7 +97,7 @@ export function createGround(ctx) {
   const root = new T.Group(); scene.add(root);
   // 표식 기둥(하늘에서 공터 찾기용)
   const beacon = new T.Mesh(new T.CylinderGeometry(2.2, 2.2, 600, 16, 1, true), new T.MeshBasicMaterial({color: 0xffd27a, transparent: true, opacity: .14, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide}));
-  beacon.position.set(ZONE.x, hAt(ZONE.x, ZONE.z) + 300, ZONE.z); root.add(beacon);
+  beacon.position.set(PAD.x, hAt(PAD.x, PAD.z) + 300, PAD.z); root.add(beacon);
   const zoneRing = new T.Mesh(new T.RingGeometry(ZONE.r - 2, ZONE.r, 96), new T.MeshBasicMaterial({color: 0xffd27a, transparent: true, opacity: .0, side: T.DoubleSide, depthWrite: false}));
   zoneRing.rotation.x = -Math.PI / 2; zoneRing.position.set(ZONE.x, hAt(ZONE.x, ZONE.z) + 3, ZONE.z); root.add(zoneRing);
 
@@ -145,13 +147,15 @@ export function createGround(ctx) {
   ];
   const branchGeo = new T.CylinderGeometry(.06, .09, 1.4, 6), stoneGeo = new T.DodecahedronGeometry(.38, 0), shardGeo = new T.OctahedronGeometry(.32, 0);
   const shardMat = new T.MeshStandardMaterial({color: 0xffc85a, emissive: 0xff8a2a, emissiveIntensity: 1.4});
-  for (const s of spots) {
+  function makeSpot(s) {
     const p = placeOnGround(s.d[0], s.d[1]); let m;
     if (s.type === 'branch') { m = new T.Group(); for (let k = 0; k < 3; k++) { const b = new T.Mesh(branchGeo, wood); b.rotation.set(Math.PI / 2, 0, k * .8); b.position.y = .1 + k * .05; m.add(b); } }
     else if (s.type === 'stone') { m = new T.Mesh(stoneGeo, mat(0x8b8780)); m.position.y = .25; const g = new T.Group(); g.add(m); m = g; }
     else { m = new T.Group(); const c = new T.Mesh(shardGeo, shardMat); c.position.y = .7; c.scale.y = 1.6; m.add(c); }
-    m.position.copy(p); root.add(m); s.mesh = m; s.pos = p; m.visible = !world.collected.includes(s.id);
+    m.position.copy(p); root.add(m); s.mesh = m; s.pos = p; m.visible = !world.collected.includes(s.id); return s;
   }
+  for (const sp of spots) makeSpot(sp);
+
 
   // 인간형 주인공 (같은 주인공의 다른 모습: 망토 색은 혈통 색)
   human = person(0x7a2a1a, 0xeec9a5, 0x2a1a12); human.visible = false; scene.add(human);
@@ -273,18 +277,23 @@ export function createGround(ctx) {
   }
 
   // --- 상호작용
+  // 임무 시스템(quests.js)이 추가하는 상호작용 대상: {id, pos, label, onUse}
+  const extras = [];
   function nearest() {
     if (mode !== 'human') return null;
     let best = null, bd = 2.8;
     const consider = (kind, pos, extra = {}) => { const d = Math.hypot(pos.x - hp.pos.x, pos.z - hp.pos.z); if (d < bd) { bd = d; best = {kind, pos, ...extra}; } };
     for (const s of spots) if (!world.collected.includes(s.id)) consider('gather', s.pos, {spot: s});
     consider('sera', seraPos); consider(world.built.workbench ? 'bench' : 'site', benchPos); consider('tower', towerPos);
+    for (const x of extras) consider('custom', x.pos, {item: x});
     return best;
   }
   function interact() {
     if (dialog) { nextLine(); return; }
     const n = nearest(); if (!n) return;
     const bag = world.bag, st = step();
+    if (n.kind === 'custom') { n.item.onUse(); return; }
+    if (['sera', 'bench', 'tower', 'site'].includes(n.kind) && world.step >= STEPS.indexOf('done') && ctx.onInteract?.(n.kind) === true) return; // 첫 임무 이후는 임무 시스템이 우선
     if (n.kind === 'gather') {
       const s = n.spot; world.collected.push(s.id); bag[s.type]++; s.mesh.visible = false;
       ctx.burst(s.pos.clone().add(v.set(0, .6, 0)), s.type === 'shard' ? 0xffc85a : 0xd9c8a0, 18, 5, .4); ctx.sfx?.(s.type === 'shard' ? 'levelup' : 'ui_click');
@@ -390,6 +399,8 @@ export function createGround(ctx) {
     $h('.g-help').hidden = mode !== 'human'; $h('.g-bag').hidden = !bagTxt; $h('.g-bag').textContent = bagTxt;
   }
   function promptText(n) {
+    if (n.kind === 'custom') return n.item.label;
+    if (world.step >= STEPS.indexOf('done')) { const o = ctx.promptFor?.(n.kind); if (o) return o; }
     if (n.kind === 'gather') return `E — ${ITEM_NAMES[n.spot.type]} 줍기`;
     if (n.kind === 'sera') return 'E — 세라와 대화';
     if (n.kind === 'site') return 'E — 작업대 짓기 (나뭇가지 2 · 돌 2)';
@@ -399,7 +410,7 @@ export function createGround(ctx) {
   }
   // 임무 목표 문구 (게임 HUD의 #objective에 사용)
   function objective() {
-    const st = step(), t = MISSION01.titles, bag = world.bag, far = Math.round(Math.hypot(player.position.x - ZONE.x, player.position.z - ZONE.z));
+    const st = step(), t = MISSION01.titles, bag = world.bag, far = Math.round(Math.hypot(player.position.x - PAD.x, player.position.z - PAD.z));
     if (st === 'land') return `${t.land} · 금빛 기둥까지 ${far}m`;
     if (st === 'gather') return `${t.gather} (가지 ${Math.min(3, bag.branch + (world.built.workbench ? 2 : 0))}/3 · 돌 ${Math.min(3, bag.stone + (world.built.workbench ? 2 : 0))}/3 · 파편 ${Math.min(1, bag.shard)}/1)`;
     return t[st] || '';
@@ -421,7 +432,11 @@ export function createGround(ctx) {
     ctx.onModeChange(mode);
   }
   return {
-    saveDragon(d) { world.dragon = d; return save(); }, slot, loadHero, get heroLoaded() { return !!hero; },
+    saveDragon(d) { world.dragon = d; return save(); }, slot,
+    addInteract(x) { extras.push(x); return x; }, removeInteract(id) { const i = extras.findIndex(x => x.id === id); if (i >= 0) extras.splice(i, 1); },
+    addGather(id, type, dx, dz) { if (spots.some(q => q.id === id)) return; spots.push(makeSpot({id, type, d: [dx, dz]})); },
+    say: (lines, done) => say(lines, done), makePerson: (c, sk, h) => { const g = person(c, sk, h); root.add(g); return g; }, placeOnGround: (dx, dz) => placeOnGround(dx, dz),
+    get talkingNow() { return !!dialog; }, loadHero, get heroLoaded() { return !!hero; },
     update, restore, tryLand, takeoff, toHuman, toDragon, interact, objective, save,
     get mode() { return mode; }, get animating() { return !!anim; }, get dragonMul() { return dragonMul; }, get talking() { return !!dialog; }, get busy() { return !!anim || !!dialog; }, get world() { return world; }, get loadedFrom() { return from; },
     get human() { return hp; }, get landCheck() { return landCheck; }, spots, positions: {tower: towerPos, bench: benchPos, sera: seraPos},

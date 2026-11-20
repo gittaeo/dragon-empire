@@ -64,8 +64,10 @@ export function combatXp(g, base, stage, {budgetOff = false} = {}) {
 }
 // 1회 보상: 이미 받았으면 0
 export function oneTime(g, key, amount) { if (g.rewarded[key]) return 0; g.rewarded[key] = 1; return amount; }
-// 진화 시험이 필요한 경계: 9→10(드레이크). 웜·엠페러 시험은 콘텐츠가 없어 아직 잠그지 않음(PACING.md P1)
-export const TRIAL_GATES = [{level: 10, trial: 'drake', name: '비행 시험'}];
+// 진화 시험이 필요한 경계: 9→10 드레이크(비행 시험), 19→20 웜(회피 시험, MISSION_02). 엠페러 시험은 콘텐츠가 없어 아직 잠그지 않음
+// 이미 그 레벨을 넘은 저장(페이싱 도입 전 슬롯·테스트 주소)은 syncTrials로 통과 처리 → 레벨이 내려가지 않음
+export function syncTrials(g, level) { for (const t of TRIAL_GATES) if (level >= t.level) g.trials[t.trial] = true; }
+export const TRIAL_GATES = [{level: 10, trial: 'drake', name: '비행 시험'}, {level: 20, trial: 'wyrm', name: '회피 시험'}];
 export function gateFor(level, g) { return TRIAL_GATES.find(t => level >= t.level && !g.trials[t.trial]) || null; }
 // 시험 대기 중 초과 XP는 한 레벨분까지만 보관
 export function holdAtGate(state, g, gate) {

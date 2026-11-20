@@ -10,7 +10,8 @@ import {createTouchControls} from './touch.js';
 import {loadManifest, loadModel, setDragonPathVisual} from './assets-loader.js';
 import {FlightAnimator} from './dragon-anim.js';
 import {createAudio} from './audio.js';
-import {emptyGrowth, migrateGrowth, accrueRest, tickPlay, combatXp, oneTime, gateFor, holdAtGate, REWARDS, SITES, DISCOVERY_STAGE_MUL} from './growth.js';
+import {syncTrials, emptyGrowth, migrateGrowth, accrueRest, tickPlay, combatXp, oneTime, gateFor, holdAtGate, REWARDS, SITES, DISCOVERY_STAGE_MUL} from './growth.js';
+import {createQuests} from './quests.js';
 import {createGround, activeSlot, listSlots, MAX_SLOTS, ACTIVE_SLOT_KEY} from './ground.js';
 import {createSkillSystem, skillFor, fireTrait, SLOT_UNLOCK, COMBO_WINDOW, comboLabel, ULT_PER_KILL, ULT_PER_SEC} from './skills.js';
 
@@ -168,7 +169,8 @@ function updateBoss(dt) {
   if (d < u.radius + 3.2 * scaleNow && hitTimer <= 0) { hurt(maxHp * .08); hitTimer = 1; }
   const pr2 = (2.5 * scaleNow + 4) ** 2;
   for (let i = bossBolts.length - 1; i >= 0; i--) {
-    const b = bossBolts[i]; b.o.position.addScaledVector(b.v, dt); b.life -= dt;
+    const b = bossBolts[i]; if (!b) break;
+    b.o.position.addScaledVector(b.v, dt); b.life -= dt;
     if (Math.random() < .3) spark(b.o.position, 0xffa13a, _pv.set(0, 0, 0), 5, .35);
     if (b.o.position.distanceToSquared(player.position) < pr2) { hurt(maxHp * .04); burst(b.o.position, 0xffb54a, 16, 18); b.life = 0; }
     if (b.life <= 0) { scene.remove(b.o); bossBolts.splice(i, 1); }
@@ -322,6 +324,7 @@ function startCoronation() {
   banner('드래곤 엠페러 대관', 'ULT 충전 완료 · 황제의 하늘이 열립니다', 3.5); refresh();
 }
 function killEnemy(e) {
+  quests?.onKill(e);
   combo = comboTimer > 0 ? combo + 1 : 1; comboTimer = COMBO_WINDOW; showCombo();
   if (stage() >= 4 && coronation < 0) ult = Math.min(100, ult + ULT_PER_KILL);
   if (e.userData.elite) { elite = null; for (let i = 0; i < 3; i++) burst(e.position, i ? 0xffd27a : 0xffffff, 90, 50, 2.2); shakeAmp = Math.max(shakeAmp, .9); hitStopT = Math.max(hitStopT, .09); hp = maxHp; ult = Math.min(100, ult + 30); banner('황금 등불 대장 격파!', '생명력 회복 · ULT +30', 2); }
@@ -348,7 +351,7 @@ function gainXp(amount, source, label = '') {
   if (gate) {
     const wasHeld = level === gate.level - 1 && xp >= xpToNext(level);
     st = holdAtGate(st, growth, gate);
-    if (!wasHeld) banner('진화의 문턱', gnd.world.step >= 8 ? `${gate.name} — 금빛 고리를 통과하면 진화합니다` : '첫 임무를 마치면 비행 시험이 열립니다', 3);
+    if (!wasHeld) banner('진화의 문턱', gate.trial === 'drake' ? (gnd.world.step >= 8 ? `${gate.name} — 금빛 고리를 통과하면 진화합니다` : '첫 임무를 마치면 비행 시험이 열립니다') : (quests?.allDone ? `${gate.name} — 등불 사슬 섬 바깥 주황 고리에서 시작` : '2단계 임무 3개를 마치면 회피 시험이 열립니다'), 3);
   }
   level = st.level; xp = st.xp;
   if (level > beforeLevel) { refresh(); hp = Math.min(maxHp, hp + maxHp * .15); if (stage() === beforeStage) sfx('levelup'); }
@@ -498,6 +501,7 @@ function updateBolts(dt) {
     const b = bolts[i]; b.prev.copy(b.o.position); b.o.position.addScaledVector(b.v, dt); b.life -= dt;
     if (Math.random() < .7) { _pv.copy(b.v).multiplyScalar(-.08).add(tmp2.set((Math.random() - .5) * 7, (Math.random() - .5) * 7, (Math.random() - .5) * 7)); spark(b.o.position, path === 'storm' ? 0x77dfff : 0xff8a2a, _pv, (2 + Math.random() * 3) * fxScale(), .3 + Math.random() * .25); }
     let hit = null;
+    if (quests?.boltHit(b.prev, b.o.position, b.r, segDistSq)) { burst(b.o.position, 0xffd27a, 30, 25, 1.2); b.life = 0; }
     for (const e of enemies) { if (b.hitSet?.has(e)) continue; const rr = b.r + 2 * ((e.userData.grow || 1) - 1); if (segDistSq(e.position, b.prev, b.o.position) < rr * rr) { hit = e; break; } }
     if (!hit && boss) { const rr = b.r + boss.userData.radius; if (segDistSq(boss.position, b.prev, b.o.position) < rr * rr) { damageBoss(b.dmg, b.o.position); skills.onBoltHit(path, stage(), null, b.o.position, b.dmg); b.life = 0; } }
     if (hit) {
@@ -516,13 +520,13 @@ function updateEnemies(dt) {
   // 무리 스폰: 초당 스폰 속도만큼 예산 적립 → 4마리 이상 모이면 4~6마리 무리로
   const maxGroup = st >= 4 ? 9 : st === 3 ? 7 : 6;
   spawnBudget = Math.min(maxGroup, spawnBudget + STAGE.spawnRate[st - 1] * dt);
-  if (spawnBudget >= 4 && enemies.length + 4 <= cap && coronation < 0) { const n = Math.min(Math.floor(spawnBudget), cap - enemies.length, maxGroup); spawnGroup(n); spawnBudget -= n; }
+  if (spawnBudget >= 4 && enemies.length + 4 <= cap && coronation < 0 && !quests?.trialActive) { const n = Math.min(Math.floor(spawnBudget), cap - enemies.length, maxGroup); spawnGroup(n); spawnBudget -= n; }
   shotTokens = Math.min(STAGE.shooters[st - 1], shotTokens + STAGE.shooters[st - 1] / 3 * dt);
   dashTimer -= dt;
   const contactR = 3.2 * sc + 4 + 2 * (ENEMY_GROW[st - 1] - 1);
   for (const e of [...enemies]) {
     const u = e.userData; tmp.subVectors(player.position, e.position); const d = tmp.length(); tmp.divideScalar(d || 1);
-    if (d > 450) { groupCenter(_c); e.position.set(_c.x + (Math.random() - .5) * 50, _c.y, _c.z + (Math.random() - .5) * 50); continue; }
+    if (d > 450) { if (u.questTag) continue; groupCenter(_c); e.position.set(_c.x + (Math.random() - .5) * 50, _c.y, _c.z + (Math.random() - .5) * 50); continue; }
     if (u.dash > 0) { u.dash -= dt; e.position.addScaledVector(u.dashDir, 60 * dt); }
     else if (d > 60) e.position.addScaledVector(tmp, 16 * u.speed * dt);
     else { // 30~60m에서 선회
@@ -549,7 +553,8 @@ function updateEnemies(dt) {
   }
   const pr2 = (2.5 * sc + 2) ** 2;
   for (let i = enemyBolts.length - 1; i >= 0; i--) {
-    const b = enemyBolts[i]; b.o.position.addScaledVector(b.v, dt); b.life -= dt;
+    const b = enemyBolts[i]; if (!b) break; // 피격으로 판이 끝나면 배열이 비워짐
+    b.o.position.addScaledVector(b.v, dt); b.life -= dt;
     if (Math.random() < .3) spark(b.o.position, 0xb27cff, _pv.set(0, 0, 0), 3, .3);
     if (b.o.position.distanceToSquared(player.position) < pr2) { hurt(maxHp * STAGE.shotDamagePct[st - 1]); burst(b.o.position, 0xc79bff, 12, 14); b.life = 0; }
     if (b.life <= 0) { scene.remove(b.o); enemyBolts.splice(i, 1); }
@@ -605,7 +610,7 @@ function loop() {
     if (!grounded) { const f = updateFlight(dt); boosting = f.boosting; fireBreath(dt, f.firing); updateEnemies(dt); if (!over) updateBoss(dt); if (!over) updateElite(dt); if (!over) updateBolts(dt); }
     else { player.rotation.x *= Math.exp(-6 * raw); player.rotation.y = yaw; flySpeed = 0; animIn.fwd = animIn.side = 0; animIn.up = animIn.down = animIn.boost = false; }
     gnd.update(dt, raw, keys, touch.state, camera); updateQuestHud();
-    tickPlay(growth, dt); if ((discoverT -= raw) <= 0) { discoverT = .4; checkDiscovery(); } updateTrial(dt);
+    tickPlay(growth, dt); if ((discoverT -= raw) <= 0) { discoverT = .4; checkDiscovery(); } updateTrial(dt); quests?.update(dt);
     if (xpToast > 0 && (xpToast -= raw) <= 0) $('#xptoast').classList.remove('on');
   }
   // 성장 저장은 일시정지(혈통 선택 등) 중에도 진행
@@ -684,7 +689,9 @@ function applySavedDragon(d) {
   hp = maxHpForLevel(level) * (path === 'storm' ? 1.1 : 1); scaleNow = stageScale(level); camDistNow = STAGE.camDist[stage() - 1];
   growth = migrateGrowth(d.growth);
 }
+let quests = null;
 const gnd = createGround({scene, terrain, player, store, banner, burst, spark, sfx, slot: SLOT, loadModel,
+  onInteract: k => quests?.onInteract(k), promptFor: k => quests?.promptFor(k),
   reward: (key, source, amount, label) => { const a = oneTime(growth, key, amount); if (a) { gainXp(a, source, label); markProgress(true); } },
   shake: a => { shakeAmp = Math.max(shakeAmp, a); }, fx: () => fxScale(), scale: () => scaleNow, path: () => path, pathColor,
   getYaw: () => yaw, getPitch: () => pitch, setYaw: v => { yaw = v; pitch = 0; }, time: () => time,
@@ -703,9 +710,15 @@ function groundKey(code) {
   return m !== 'air' && ['KeyQ', 'KeyR', 'KeyF'].includes(code); // 지상에서는 스킬·브레스 막음
 }
 let questKey = '';
-function updateQuestHud() { const t = trialAvailable() ? '비행 시험 · 풍향탑 공터 주변 금빛 고리 8개를 100초 안에 통과' : gateFor(level + 1, growth) && level === 9 && xp >= xpToNext(9) ? '진화 대기 · 첫 임무를 마치면 비행 시험이 열립니다' : gnd.objective(); if (t !== questKey) { questKey = t; $('#quest').textContent = t ? '임무 · ' + t : ''; $('#quest').hidden = !t; } }
+function updateQuestHud() { const qo = quests?.objective() || ''; const t = trialAvailable() ? '비행 시험 · 풍향탑 공터 주변 금빛 고리 8개를 100초 안에 통과' : gateFor(level + 1, growth) && level === 9 && xp >= xpToNext(9) ? '진화 대기 · 첫 임무를 마치면 비행 시험이 열립니다' : (qo || gnd.objective()); if (t !== questKey) { questKey = t; $('#quest').textContent = t ? '임무 · ' + t : ''; $('#quest').hidden = !t; } }
 loadManifest().then(() => gnd.loadHero()).catch(e => console.warn('[hero]', e)); // 여성 폴리모프 모델
 applySavedDragon(gnd.world.dragon);
+syncTrials(growth, level); // 이미 넘은 진화 경계는 통과 처리(이전 저장·테스트 주소)
+const _fwd = new T.Vector3();
+quests = createQuests({scene, terrain, player, gnd, growth: () => growth, gainXp, oneTime: (k, a) => oneTime(growth, k, a), banner, sfx, burst, makeEnemy,
+  stage, level: () => level, xp: () => xp, xpToNext, scale: () => scaleNow, markProgress, hurt, hp: () => hp, maxHp: () => maxHp,
+  clearEnemiesNear: (pos, r) => { for (const e of [...enemies]) if (!e.userData.questTag && e.position.distanceTo(pos) < r) removeEnemy(e); for (const b of enemyBolts) scene.remove(b.o); enemyBolts.length = 0; },
+  forward: () => _fwd.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch))});
 { const rest = TEST_RUN ? 0 : accrueRest(growth, Date.now(), level); if (rest > 0 && level < MAX_LEVEL) setTimeout(() => banner('휴식 숨결', `쉬는 동안 숨결이 모였습니다 — 다음 전투 경험치 2배 (${Math.round(rest)})`, 3.2), 600); }
 gnd.restore();
 // 시작 화면: 슬롯 목록 · 이어하기 · 새 용으로 시작
@@ -756,4 +769,4 @@ loadManifest().then(async () => {
 if (touch.isTouch) document.querySelector('.help')?.remove();
 // 디버그·테스트 훅 (읽기 전용 상태)
 window.__game = {camera, get hud() { return {level, xp, hp, maxHp, kills, path, paused, over, playing, yaw, pitch, coins, rank, rankXp, coronation, gliding, flySpeed, runTime, stage: stage(), invuln}; },
-  get player() { return player; }, anim, get enemies() { return enemies; }, get enemyBolts() { return enemyBolts; }, get boss() { return boss; }, spawnBoss, ground: gnd, get growth() { return growth; }, gainXp, skills, castSkill, get combo() { return combo; }, get ult() { return ult; }, fillUlt() { ult = 100; }, spawnElite, get elite() { return elite; }, terrain, tod, touch, start};
+  get player() { return player; }, anim, get enemies() { return enemies; }, get enemyBolts() { return enemyBolts; }, get boss() { return boss; }, spawnBoss, ground: gnd, get growth() { return growth; }, gainXp, get quests() { return quests; }, skills, castSkill, get combo() { return combo; }, get ult() { return ult; }, fillUlt() { ult = 100; }, spawnElite, get elite() { return elite; }, terrain, tod, touch, start};

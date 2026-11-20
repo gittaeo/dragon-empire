@@ -14,7 +14,7 @@ const path=require('node:path');
    const errors=[];page.on('pageerror',e=>errors.push(e.message));
    await page.route('**/game.js',async route=>{
     const src=fs.readFileSync(path.join(__dirname,'../game.js'),'utf8');
-    const instrument=`\ngrowth.trials.drake=true;growth.budgetOff=true;window.__testRun={kill(){if(!enemies.length)spawnGroup(4);killEnemy(enemies[0])},get state(){return {level,xp,kills,path,paused,over,coins,rank,lateKills,coronation}},skipCoronation(){if(coronation>=0)coronation=.001}};`;
+    const instrument=`\ngrowth.trials.drake=true;growth.trials.wyrm=true;growth.budgetOff=true;window.__testRun={kill(){if(!enemies.length)spawnGroup(4);killEnemy(enemies[0])},get state(){return {level,xp,kills,path,paused,over,coins,rank,lateKills,coronation}},skipCoronation(){if(coronation>=0)coronation=.001}};`;
     await route.fulfill({status:200,contentType:'text/javascript; charset=utf-8',body:src+instrument});
    });
    await page.goto('http://127.0.0.1:4178/',{waitUntil:'domcontentloaded'});
