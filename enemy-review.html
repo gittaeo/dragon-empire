@@ -11,7 +11,7 @@ scene.add(new THREE.HemisphereLight(0xdde8ff,0x4a3a2a,2.2));const l=new THREE.Di
 const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.autoRotate=new URLSearchParams(location.search).get('spin')!=='0';
 const view=new URLSearchParams(location.search).get('yaw');
 const evo=new URLSearchParams(location.search).get('set')==='evo';
-const items=evo?[['../../../approved/dragon_hatchling','1 해츨링',4],['../evolution/dragon_drake','2 드레이크',4.6],['../evolution/dragon_wyrm','3 웜',5.2],['../evolution/dragon_emperor','4 엠페러',6]]:[['lantern_moth','등불 나방',4],['lantern_rider','등불 기수',4.5],['chain_knight','사슬 기사',4.5],['boss_lucerna','보스 루세르나',9]];
+const v2=new URLSearchParams(location.search).get('v')==='2';const items=evo?[['../../../approved/dragon_hatchling','1 해츨링',4],['../evolution/dragon_drake','2 드레이크',4.6],['../evolution/dragon_wyrm'+(v2?'_v2':''),'3 웜'+(v2?' (새 머리)':''),5.2],['../evolution/dragon_emperor'+(v2?'_v2':''),'4 엠페러'+(v2?' (새 머리)':''),6]]:[['lantern_moth','등불 나방',4],['lantern_rider','등불 기수',4.5],['chain_knight','사슬 기사',4.5],['boss_lucerna','보스 루세르나',9]];
 const xs=evo?[-14,-6.5,1.5,11]:[-13,-6,1,11];const pivots=[];let done=0;const stats=[];
 items.forEach(([f,name,size],i)=>new GLTFLoader().load(`./assets/pending/models/enemies/${f}.glb`,g=>{
   const m=g.scene,box=new THREE.Box3().setFromObject(m),c=box.getCenter(new THREE.Vector3()),s=box.getSize(new THREE.Vector3()),k=size/Math.max(s.x,s.y,s.z);

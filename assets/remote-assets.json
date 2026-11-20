@@ -180,6 +180,34 @@
       "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_131941_e4f6f3a8-0133-4092-876e-26c5ce96dee1.glb",
       "job": "e4f6f3a8",
       "note": "Meshy7 25.9k tri PBR 2048"
+    },
+    {
+      "id": "dragon_wyrm_src_v2",
+      "path": "pending/models/evolution/wyrm_src_v2.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_142148_61e49281-2171-4c9b-ace1-ddea5f09882f.png",
+      "job": "61e49281",
+      "note": "머리 잔가시 제거·큰 뿔 2개(사용자 피드백)"
+    },
+    {
+      "id": "dragon_emperor_src_v2",
+      "path": "pending/models/evolution/emperor_src_v2.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_142147_585ec2c4-2fa1-4d5d-9fb4-c3670fbb3309.png",
+      "job": "585ec2c4",
+      "note": "머리 잔가시·왕관 제거, 금빛 큰 뿔 2개"
+    },
+    {
+      "id": "dragon_wyrm_v2_glb",
+      "path": "pending/models/evolution/dragon_wyrm_v2.glb",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_142240_7254b9e3-2391-4166-b7e7-51a98de118b3.glb",
+      "job": "7254b9e3",
+      "note": "Meshy7 25.9k PBR"
+    },
+    {
+      "id": "dragon_emperor_v2_glb",
+      "path": "pending/models/evolution/dragon_emperor_v2.glb",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_142243_a5296fd8-c00b-490b-8b94-32289c0663b0.glb",
+      "job": "a5296fd8",
+      "note": "Meshy7 25.9k PBR"
     }
   ]
 }

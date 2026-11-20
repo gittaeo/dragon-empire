@@ -203,3 +203,27 @@ body.storm #skills .ico{color:var(--storm);text-shadow:0 0 12px rgba(95,211,255,
 }
 
 .overlay{overflow-x:hidden}
+
+/* ---------- 지상 시제품: 착륙·변신·상호작용 HUD ---------- */
+#ground-hud{position:fixed;inset:0;pointer-events:none;z-index:28}
+#ground-hud[hidden],#ground-hud [hidden]{display:none!important}
+#ground-hud .g-prompt{position:fixed;left:50%;bottom:150px;transform:translateX(-50%);padding:8px 16px;border-radius:4px;background:rgba(10,11,18,.78);border:1px solid rgba(233,196,106,.5);color:var(--gold-hi);font:700 13px var(--body);letter-spacing:.03em;white-space:nowrap}
+#ground-hud .g-prompt.bad{color:#ffb4a0;border-color:rgba(226,70,59,.6)}
+#ground-hud .g-bag{position:fixed;left:32px;top:212px;padding:8px 14px;border-radius:4px;background:rgba(10,11,18,.7);border:1px solid rgba(233,196,106,.3);font:700 12px var(--body);color:var(--text)}
+#ground-hud .g-actions{position:fixed;right:32px;bottom:150px;display:flex;flex-direction:column;gap:8px;align-items:flex-end;pointer-events:auto}
+#ground-hud .g-actions button{cursor:pointer;border:1px solid var(--gold);border-radius:4px;padding:10px 16px;background:linear-gradient(180deg,rgba(60,44,20,.92),rgba(20,16,10,.92));color:var(--gold-hi);font:900 13px var(--body);letter-spacing:.04em;box-shadow:0 0 14px rgba(233,196,106,.25)}
+#ground-hud .g-actions button.bad{opacity:.55;border-color:#7a5a3a}
+#ground-hud .g-actions kbd{margin-left:6px}
+#ground-hud .g-dialog{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);width:min(620px,92vw);padding:16px 22px 12px;border-radius:6px;background:linear-gradient(180deg,rgba(30,24,26,.95),rgba(10,11,18,.95));border:1px solid rgba(233,196,106,.55);box-shadow:0 18px 40px rgba(0,0,0,.5);pointer-events:auto;cursor:pointer}
+#ground-hud .g-dialog b{display:block;font:900 13px var(--head);letter-spacing:.12em;color:var(--ember);margin-bottom:6px}
+#ground-hud .g-dialog p{margin:0;font:500 15px/1.7 var(--body);color:var(--text)}
+#ground-hud .g-dialog small{display:block;text-align:right;margin-top:6px;font-size:10px;color:var(--text-dim)}
+#quest{display:block;font-style:normal;font:700 12px var(--body);color:var(--gold-hi);border-top:1px solid rgba(233,196,106,.25);padding-top:6px;margin-top:2px}
+body[data-form=human] #skills,body[data-form=landed] #skills,body[data-form=human] .crosshair,body[data-form=human] #combo{display:none}
+@media(max-width:760px){#ground-hud .g-actions{right:16px;bottom:240px}#ground-hud .g-bag{left:16px;top:180px}#ground-hud .g-prompt{bottom:200px}}
+@media (pointer:coarse){#ground-hud .g-actions{bottom:auto;top:46%;right:12px}#ground-hud .g-actions button{padding:12px 16px}}
+#ground-hud .g-help{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:999px;background:rgba(8,9,14,.62);border:1px solid rgba(233,196,106,.22);font-size:10px;color:var(--text-dim);white-space:nowrap}
+body[data-form=human] .help,body[data-form=landed] .help{display:none}
+@media (pointer:coarse){#ground-hud .g-help{display:none}}
+body[data-form=human] #touch-ui .tc-buttons,body[data-form=human] #touch-ui .tc-skills,body[data-form=landed] #touch-ui .tc-buttons,body[data-form=landed] #touch-ui .tc-skills{display:none}
+@media (pointer:coarse){#ground-hud .g-bag{top:auto;bottom:12px;left:50%;transform:translateX(-50%)}}

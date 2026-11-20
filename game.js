@@ -10,6 +10,7 @@ import {createTouchControls} from './touch.js';
 import {loadManifest, loadModel, setDragonPathVisual} from './assets-loader.js';
 import {FlightAnimator} from './dragon-anim.js';
 import {createAudio} from './audio.js';
+import {createGround} from './ground.js';
 import {createSkillSystem, skillFor, fireTrait, SLOT_UNLOCK, COMBO_WINDOW, comboLabel, ULT_PER_KILL, ULT_PER_SEC} from './skills.js';
 
 const $ = s => document.querySelector(s), canvas = $('#world');
@@ -234,7 +235,7 @@ const keys = {};
 function look(dx, dy, kx, ky) { yaw -= dx * kx * (Math.cos(pitch) < 0 ? -1 : 1); pitch -= dy * ky; pitch = T.MathUtils.euclideanModulo(pitch + Math.PI, 2 * Math.PI) - Math.PI; } // 상하 무제한(사용자 요청)
 const touch = createTouchControls({onLook: (dx, dy) => { if (playing && !paused) look(dx, dy, .005, .004); }, onSkill: slot => castSkill(slot)}); touch.setVisible(false);
 function clearInput() { for (const key in keys) keys[key] = false; mouseDown = false; orbiting = false; touch.reset(); }
-window.addEventListener('keydown', e => { if (!e.repeat) { if (e.code === 'KeyQ') castSkill('skill1'); if (e.code === 'KeyE') castSkill('skill2'); if (e.code === 'KeyR') castSkill('ult'); } keys[e.code] = true; if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); if (e.code === 'Escape' && playing && $('#choice').hidden) pause(); });
+window.addEventListener('keydown', e => { if (!e.repeat) { if (playing && !paused && !over && groundKey(e.code)) { e.preventDefault(); return; } if (e.code === 'KeyQ') castSkill('skill1'); if (e.code === 'KeyE') castSkill('skill2'); if (e.code === 'KeyR') castSkill('ult'); } keys[e.code] = true; if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault(); if (e.code === 'Escape' && playing && $('#choice').hidden) pause(); });
 window.addEventListener('keyup', e => keys[e.code] = false);
 window.addEventListener('blur', () => { clearInput(); if (playing && !over && $('#choice').hidden) pause(); });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -468,7 +469,7 @@ const skills = createSkillSystem({scene, camera, player,
   clearBoltsNear: (pos, r) => { for (const list of [enemyBolts, bossBolts]) for (let i = list.length - 1; i >= 0; i--) if (list[i].o.position.distanceTo(pos) < r) { spark(list[i].o.position, 0xfff1c1, _pv.set(0, 0, 0), 6, .3); scene.remove(list[i].o); list.splice(i, 1); } },
 });
 function castSkill(slot) {
-  if (!playing || paused || over || coronation >= 0) return;
+  if (!playing || paused || over || coronation >= 0 || (gnd && gnd.mode !== 'air')) return;
   const st = stage(), sk = skillFor(path, slot, st);
   if (!sk) { if (st < SLOT_UNLOCK[slot]) banner('아직 잠긴 스킬', `${SLOT_UNLOCK[slot]}단계 진화 후 해금`, 1); return; }
   if (skills.cast(slot, path, st)) sfx(({meteor: 'skill_meteor', tornado: 'skill_tornado', strike: 'skill_lightning', cloud: 'skill_lightning', aura: 'skill_shield', pillars: path === 'storm' ? 'ult_storm' : 'ult_flame'})[sk.kind] || 'ui_click');
@@ -581,27 +582,51 @@ function loop() {
     if (stage() >= 4 && coronation < 0) ult = Math.min(100, ult + ULT_PER_SEC * dt);
     skills.update(dt, raw);
     runTime += dt; invuln = Math.max(0, invuln - dt); hitTimer -= dt;
-    const f = updateFlight(dt); boosting = f.boosting;
-    fireBreath(dt, f.firing); updateEnemies(dt); if (!over) updateBoss(dt); if (!over) updateElite(dt); if (!over) updateBolts(dt);
+    const grounded = gnd.mode !== 'air' || gnd.animating;
+    if (!grounded) { const f = updateFlight(dt); boosting = f.boosting; fireBreath(dt, f.firing); updateEnemies(dt); if (!over) updateBoss(dt); if (!over) updateElite(dt); if (!over) updateBolts(dt); }
+    else { player.rotation.x *= Math.exp(-6 * raw); player.rotation.y = yaw; flySpeed = 0; animIn.fwd = animIn.side = 0; animIn.up = animIn.down = animIn.boost = false; }
+    gnd.update(dt, raw, keys, touch.state, camera); updateQuestHud();
   }
   if (bannerTimer > 0 && (bannerTimer -= raw) <= 0) $('#banner').classList.remove('on');
   updateParticles(raw);
   if (!(playing && !paused && !over)) { animIn.fwd = animIn.side = 0; animIn.up = animIn.down = animIn.boost = false; }
-  const targetScale = stageScale(level); scaleNow += (targetScale - scaleNow) * (1 - Math.exp(-3 * raw)); player.scale.setScalar(scaleNow);
+  const targetScale = stageScale(level); scaleNow += (targetScale - scaleNow) * (1 - Math.exp(-3 * raw)); player.scale.setScalar(scaleNow * gnd.dragonMul);
   syncStageModel(); updateStageLook(raw);
   animIn.yaw = yaw; anim.update(raw, animIn); player.rotation.z = anim.bankAngle;
   const mdl = player.userData.model;
   if (mdl && mdl.userData.rig) { anim.applyUniforms(mdl.userData.rig); anim.applyPose(mdl, mdl.userData.unit); }
   else player.userData.wings.forEach((w, i) => w.rotation.z = (i ? -1 : 1) * (.05 - anim.wingUp * .45));
-  updateCamera(raw, boosting);
+  if (gnd.mode === 'human') gnd.updateCamera(camera, raw); else updateCamera(raw, boosting);
   if (shakeAmp > .01) { const a = shakeAmp * (1.2 + .6 * scaleNow); camera.position.add(tmp.set((Math.random() - .5) * a, (Math.random() - .5) * a, (Math.random() - .5) * a)); shakeAmp *= Math.exp(-7 * raw); }
   if (playing && !over) updateSkillHud();
   tod.update(raw, player.position); terrain.setSunDirection(tod.sunDirection); terrain.update(camera.position, raw); clouds.update(raw, camera, tod);
   renderer.render(scene, camera);
 }
 
+// ---------- 지상 시제품 (gnd.js): 착륙·폴리모프·채집·제작·수리·저장 ----------
+const gnd = createGround({scene, terrain, player, store, banner, burst, spark, sfx,
+  shake: a => { shakeAmp = Math.max(shakeAmp, a); }, fx: () => fxScale(), scale: () => scaleNow, path: () => path, pathColor,
+  getYaw: () => yaw, getPitch: () => pitch, setYaw: v => { yaw = v; pitch = 0; }, time: () => time,
+  onLandStart: () => { // 착륙 시 주변 적·탄 정리 (임시: 안전 구역에는 전투 없음)
+    for (const e of [...enemies]) removeEnemy(e); for (const list of [enemyBolts, bossBolts]) { for (const b of list) scene.remove(b.o); list.length = 0; }
+    for (const b of bolts) scene.remove(b.o); bolts.length = 0; skills.reset(); mouseDown = false; },
+  onModeChange: m => { document.body.dataset.form = m; if (m === 'air') { pitch = .25; flySpeed = STAGE.speed[stage() - 1]; } refresh(); },
+});
+function groundKey(code) {
+  const m = gnd.mode;
+  if (code === 'KeyG' && m === 'air') { if (boss) banner('착륙 불가', '루세르나가 하늘에 있습니다', 1.4); else if (coronation >= 0) {} else gnd.tryLand(); return true; }
+  if (code === 'KeyH' && m === 'landed') { gnd.toHuman(); return true; }
+  if (code === 'KeyH' && m === 'human') { gnd.toDragon(); return true; }
+  if (code === 'KeyE' && m !== 'air') { gnd.interact(); return true; }
+  if (code === 'Space' && m === 'landed' && !gnd.talking) { gnd.takeoff(); return true; }
+  return m !== 'air' && ['KeyQ', 'KeyR', 'KeyF'].includes(code); // 지상에서는 스킬·브레스 막음
+}
+let questKey = '';
+function updateQuestHud() { const t = gnd.objective(); if (t !== questKey) { questKey = t; $('#quest').textContent = t ? '임무 · ' + t : ''; $('#quest').hidden = !t; } }
+gnd.restore();
+
 // 첫 무리 2개를 시작 방향(-Z) 앞에 배치
-for (let i = 0; i < 2; i++) spawnGroup(5);
+if (gnd.mode === 'air') for (let i = 0; i < 2; i++) spawnGroup(5);
 document.body.classList.toggle('storm', path === 'storm');
 refresh(); loop();
 // 단계별 드래곤 모델: 1 해츨링(필수) · 2 드레이크 · 3 웜 · 4 엠페러 (manifest에 없으면 아래 단계 모델을 계속 사용)
@@ -633,4 +658,4 @@ loadManifest().then(async () => {
 if (touch.isTouch) document.querySelector('.help')?.remove();
 // 디버그·테스트 훅 (읽기 전용 상태)
 window.__game = {camera, get hud() { return {level, xp, hp, maxHp, kills, path, paused, over, playing, yaw, pitch, coins, rank, rankXp, coronation, gliding, flySpeed, runTime, stage: stage(), invuln}; },
-  get player() { return player; }, anim, get enemies() { return enemies; }, get enemyBolts() { return enemyBolts; }, get boss() { return boss; }, spawnBoss, skills, castSkill, get combo() { return combo; }, get ult() { return ult; }, fillUlt() { ult = 100; }, spawnElite, get elite() { return elite; }, terrain, tod, touch, start};
+  get player() { return player; }, anim, get enemies() { return enemies; }, get enemyBolts() { return enemyBolts; }, get boss() { return boss; }, spawnBoss, ground: gnd, skills, castSkill, get combo() { return combo; }, get ult() { return ult; }, fillUlt() { ult = 100; }, spawnElite, get elite() { return elite; }, terrain, tod, touch, start};
