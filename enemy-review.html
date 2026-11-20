@@ -1,17 +1,18 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>적·보스 모델 검토</title>
 <style>body{margin:0;background:#141820;color:#f4ecdc;font:14px system-ui}canvas{display:block;width:100vw;height:100vh}.info{position:fixed;top:14px;left:18px;background:#0c0e16cc;padding:12px 16px;border-radius:8px;border:1px solid #8a6a2b;pointer-events:none}.info h1{font-size:17px;margin:0 0 4px}#status{color:#e9c46a}.lbl{position:fixed;bottom:22px;transform:translateX(-50%);font-weight:700;background:#0c0e16cc;padding:4px 10px;border-radius:6px}</style>
 <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/package/examples/jsm/"}}</script></head><body>
-<div class="info"><h1>적·보스 3D 모델 검토 (assets/pending, 미승인)</h1><div>드래그 회전 · 휠 확대 · 자동 회전</div><div id="status">불러오는 중…</div></div>
+<div class="info"><h1 id="ttl">적·보스 3D 모델 검토 (assets/pending, 미승인)</h1><div>드래그 회전 · 휠 확대 · 자동 회전</div><div id="status">불러오는 중…</div></div>
 <script type="module">
 import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-const scene=new THREE.Scene();scene.background=new THREE.Color(0x232a36);
+if(new URLSearchParams(location.search).get('set')==='evo')document.querySelector('#ttl').textContent='드래곤 진화 4단계 3D 검토 (2~4단계 미승인)';const scene=new THREE.Scene();scene.background=new THREE.Color(0x232a36);
 const camera=new THREE.PerspectiveCamera(35,innerWidth/innerHeight,.1,500);camera.position.set(0,6,30);
 const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;document.body.append(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xdde8ff,0x4a3a2a,2.2));const l=new THREE.DirectionalLight(0xffe4bb,3);l.position.set(4,8,10);scene.add(l);
 const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.autoRotate=new URLSearchParams(location.search).get('spin')!=='0';
 const view=new URLSearchParams(location.search).get('yaw');
-const items=[['lantern_moth','등불 나방',4],['lantern_rider','등불 기수',4.5],['chain_knight','사슬 기사',4.5],['boss_lucerna','보스 루세르나',9]];
-const xs=[-13,-6,1,11];const pivots=[];let done=0;const stats=[];
+const evo=new URLSearchParams(location.search).get('set')==='evo';
+const items=evo?[['../../../approved/dragon_hatchling','1 해츨링',4],['../evolution/dragon_drake','2 드레이크',4.6],['../evolution/dragon_wyrm','3 웜',5.2],['../evolution/dragon_emperor','4 엠페러',6]]:[['lantern_moth','등불 나방',4],['lantern_rider','등불 기수',4.5],['chain_knight','사슬 기사',4.5],['boss_lucerna','보스 루세르나',9]];
+const xs=evo?[-14,-6.5,1.5,11]:[-13,-6,1,11];const pivots=[];let done=0;const stats=[];
 items.forEach(([f,name,size],i)=>new GLTFLoader().load(`./assets/pending/models/enemies/${f}.glb`,g=>{
   const m=g.scene,box=new THREE.Box3().setFromObject(m),c=box.getCenter(new THREE.Vector3()),s=box.getSize(new THREE.Vector3()),k=size/Math.max(s.x,s.y,s.z);
   let tris=0,tex=new Set();m.traverse(o=>{if(o.isMesh){tris+=(o.geometry.index?o.geometry.index.count:o.geometry.attributes.position.count)/3;const mt=o.material;for(const key of ['map','normalMap','emissiveMap','metalnessMap','roughnessMap'])if(mt[key]?.image)tex.add(key+':'+mt[key].image.width);}});

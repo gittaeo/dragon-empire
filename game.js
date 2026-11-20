@@ -286,7 +286,7 @@ $('#begin').onclick = start; $('#restart').onclick = () => location.reload();
 $('#return').onclick = () => finish('return'); $('#pause-return').onclick = () => finish('return');
 document.querySelectorAll('[data-path]').forEach(b => b.onclick = () => {
   if (over) return;
-  path = b.dataset.path; setDragonPathVisual(player.userData.model, path); document.body.classList.toggle('storm', path === 'storm');
+  path = b.dataset.path; for (const m of stageModels) if (m) setDragonPathVisual(m, path); document.body.classList.toggle('storm', path === 'storm');
   player.userData.skin.color.set(pathColor(0xda5639, 0x477fbc)); player.userData.wing.color.set(pathColor(0xffb653, 0x8fd5ed));
   refresh(); hp = maxHp; $('#choice').hidden = true; paused = false; touch.setVisible(true); refresh();
   burst(player.position, pathColor(0xffa326, 0x63dcff), 100, 32, fxScale());
@@ -337,6 +337,7 @@ const STAGE_LOOK = {wing: [1, 1.12, 1.24, 1.38], glow: [1, 1.6, 2.3, 3.2], tail:
 const halo = new T.Mesh(new T.TorusGeometry(1, .06, 8, 48), new T.MeshBasicMaterial({color: 0xffc85a, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false}));
 const haloInner = new T.Mesh(new T.RingGeometry(.55, 1, 48), new T.MeshBasicMaterial({color: 0xffa23a, transparent: true, opacity: 0, side: T.DoubleSide, blending: T.AdditiveBlending, depthWrite: false}));
 halo.add(haloInner); halo.position.set(0, 2.6, -1.9); halo.rotation.x = Math.PI / 2; player.add(halo); // 머리 위에 눕힌 왕관형 후광(조준선을 가리지 않게)
+const STAGE_MODEL_IDS = ['dragon_hatchling', 'dragon_drake', 'dragon_wyrm', 'dragon_emperor'], stageModels = [null, null, null, null];
 let lookStage = 0, lookT = 1;
 function updateStageLook(raw) {
   const st = stage(), mdl = player.userData.model;
@@ -344,7 +345,8 @@ function updateStageLook(raw) {
   lookT = Math.min(1, lookT + raw * .8);
   const k = i => STAGE_LOOK[i][st - 1];
   // 날개 폭(X)과 몸 길이(Z)를 단계별로 키움 → 같은 모델이라도 실루엣이 달라짐
-  const sx = k('wing'), sz = k('tail');
+  const own = mdl && mdl.userData.stageIndex === stage() - 1 && stage() > 1; // 전용 단계 모델이면 늘이지 않음
+  const sx = own ? 1 : k('wing'), sz = own ? 1 : k('tail');
   if (mdl) { mdl.scale.x += (mdl.userData.baseScale * sx - mdl.scale.x) * Math.min(1, raw * 3); mdl.scale.z += (mdl.userData.baseScale * sz - mdl.scale.z) * Math.min(1, raw * 3); }
   if (mdl && !mdl.userData.glowMats) { mdl.userData.glowMats = []; mdl.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) if (m.emissive) mdl.userData.glowMats.push(m); }); }
   for (const m of mdl?.userData.glowMats || []) { const base = m.userData.dragonOriginal?.emissiveIntensity ?? 1; const want = Math.max(base, path ? .55 : base) * k('glow') * (1 + .15 * Math.sin(time * 3)); m.emissiveIntensity += (want - m.emissiveIntensity) * Math.min(1, raw * 2); }
@@ -567,7 +569,7 @@ function loop() {
   updateParticles(raw);
   if (!(playing && !paused && !over)) { animIn.fwd = animIn.side = 0; animIn.up = animIn.down = animIn.boost = false; }
   const targetScale = stageScale(level); scaleNow += (targetScale - scaleNow) * (1 - Math.exp(-3 * raw)); player.scale.setScalar(scaleNow);
-  updateStageLook(raw);
+  syncStageModel(); updateStageLook(raw);
   animIn.yaw = yaw; anim.update(raw, animIn); player.rotation.z = anim.bankAngle;
   const mdl = player.userData.model;
   if (mdl && mdl.userData.rig) { anim.applyUniforms(mdl.userData.rig); anim.applyPose(mdl, mdl.userData.unit); }
@@ -583,8 +585,19 @@ function loop() {
 for (let i = 0; i < 2; i++) spawnGroup(5);
 document.body.classList.toggle('storm', path === 'storm');
 refresh(); loop();
-loadManifest().then(() => loadModel('dragon_hatchling', {length: 9, rig: true})).then(m => {
-  if (!m) return; player.children.forEach(c => { if (c !== halo) c.visible = false; }); m.userData.baseScale = m.scale.x; player.add(m); player.userData.model = m; setDragonPathVisual(m, path);
+// 단계별 드래곤 모델: 1 해츨링(필수) · 2 드레이크 · 3 웜 · 4 엠페러 (manifest에 없으면 아래 단계 모델을 계속 사용)
+function addStageModel(i, m) {
+  if (!m) return; m.userData.baseScale = m.scale.x; m.userData.stageIndex = i; m.visible = false; player.add(m); stageModels[i] = m; setDragonPathVisual(m, path);
+  if (i === 0) player.children.forEach(c => { if (c !== halo && !stageModels.includes(c)) c.visible = false; });
+}
+function syncStageModel() {
+  let want = null; for (let i = stage() - 1; i >= 0 && !want; i--) want = stageModels[i];
+  const cur = player.userData.model; if (!want || want === cur) return;
+  if (cur) cur.visible = false; want.visible = true; player.userData.model = want; setDragonPathVisual(want, path);
+}
+loadManifest().then(async () => {
+  addStageModel(0, await loadModel(STAGE_MODEL_IDS[0], {length: 9, rig: true}));
+  for (let i = 1; i < 4; i++) addStageModel(i, await loadModel(STAGE_MODEL_IDS[i], {length: 9, rig: true}));
 }).catch(e => console.warn('[assets]', e));
 // 승인된 적·보스 GLB (manifest에 없으면 절차적 도형 유지). 텍스처를 약하게 자체발광시켜 등불이 보이게 함
 function glow(root, k) { root.traverse(o => { if (!o.isMesh || !o.material?.map) return; o.material.emissive = new T.Color(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = k; o.material.needsUpdate = true; }); }
