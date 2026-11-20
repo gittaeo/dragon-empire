@@ -1,5 +1,9 @@
 # HANDOFF 로그 (최신이 위)
 
+## 2026-11-20 — [codex] 장애물 선분 탐색 최적화
+**한 일**: raycastObstacles가 선분의 전체 직사각형이 아니라 실제 지나는 공간 해시 셀을 순회하도록 개선. 격자 모서리도 누락 없이 검사.
+**테스트**: audio/obstacles 단위 8개 통과. 대각선·격자 경계와 200개 시드 고정 선분을 장애물별 독립 판정과 비교. PC Node 합성 데이터(장애물 200개, 5.6km 대각선) 선분 1만 회 248.7ms(평균 약 0.025ms/회). 실제 게임·휴대폰·사람 청음은 미검증.
+**다음/Claude 연결**: 기존 terrain.raycastObstacles(from,to), obstacleAt(x,y,z,radius) API는 동일. game.js 비행·카메라에서 연결하고 실제 충돌·성능 확인. audio.js는 docs/AUDIO.md 기준 연결. 미승인 pending 에셋과 Claude 담당 파일은 수정하지 않음.
 ## 2026-11-20 — [codex] 절차적 오디오와 랜드마크 충돌 API
 **한 일**: audio.js의 20종 WebAudio 효과음·주변음, 음량/음소거 저장, 거리 감쇠·초당 제한 및 audio-test.html·docs/AUDIO.md 추가. world/obstacles.js 공간 해시 및 아치/탑/떠 있는 섬 근사 충돌을 terrain.js에 연결.
 **Claude 연결 작업**: createAudio()는 첫 사용자 입력에서 자동 활성화. 상세 호출은 docs/AUDIO.md 참고. terrain.obstacleAt(x,y,z,radius)는 {hit,normal:{x,y,z},depth,obstacle} 반환(겹친 장애물 중 최대 침투); 위치에 normal*depth를 더해 밀어내고 재검사. terrain.raycastObstacles(from,to)는 첫 {point,normal,distance,fraction,obstacle} 또는 null 반환. 좌표는 월드 좌표·미터. game.js에는 아직 연결하지 않음.
@@ -184,6 +188,7 @@
 4. 레벨 구조를 BALANCE.md(Lv30, 4단계 진화)로 맞추기 — 사용자 결정 대기 중이나 추천안.
 **사용자 승인 대기**: 해츨링 3D 모델(뿔이 콘셉트보다 크고 앞으로 휨), 스카이박스·텍스처·VFX 시트.
 **테스트**: 브라우저 실행 테스트 없음. 정적 점검 결과는 docs/QA.md.
+
 
 
 

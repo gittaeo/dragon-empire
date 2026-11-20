@@ -17,6 +17,18 @@ export function createObstacleField(shapes, cellSize = 180) {
   function candidates(minX,maxX,minZ,maxZ) {
     const ids=new Set(); for(let x=cell(minX);x<=cell(maxX);x++)for(let z=cell(minZ);z<=cell(maxZ);z++)for(const id of cells.get(key(x,z))||[])ids.add(id);return ids;
   }
+  // Traverse only the cells crossed by the segment, rather than its entire
+  // bounding rectangle. Shapes are already indexed into every cell they cover.
+  function rayCandidates(from,to) {
+    const ids=new Set(), dx=to.x-from.x, dz=to.z-from.z;
+    let x=cell(from.x),z=cell(from.z);const endX=cell(to.x),endZ=cell(to.z);
+    const sx=Math.sign(dx),sz=Math.sign(dz),txDelta=sx?cellSize/Math.abs(dx):Infinity,tzDelta=sz?cellSize/Math.abs(dz):Infinity;
+    let tx=sx?((sx>0?(x+1)*cellSize:x*cellSize)-from.x)/dx:Infinity;
+    let tz=sz?((sz>0?(z+1)*cellSize:z*cellSize)-from.z)/dz:Infinity;
+    const add=(cx,cz)=>{for(const id of cells.get(key(cx,cz))||[])ids.add(id)};
+    for(;;){add(x,z);if(x===endX&&z===endZ)break;if(Math.abs(tx-tz)<1e-12){add(x+sx,z);add(x,z+sz);x+=sx;z+=sz;tx+=txDelta;tz+=tzDelta}else if(tx<tz){x+=sx;tx+=txDelta}else{z+=sz;tz+=tzDelta}}
+    return ids;
+  }
   function closest(p,s) {const ab=sub(s.b,s.a), ap=sub(p,s.a), d=dot(ab,ab), t=d?clamp(dot(ap,ab)/d,0,1):0;return {x:s.a.x+ab.x*t,y:s.a.y+ab.y*t,z:s.a.z+ab.z*t};}
   function obstacleAt(x,y,z,radius=0) {
     const p={x,y,z};let best=null;
@@ -26,7 +38,7 @@ export function createObstacleField(shapes, cellSize = 180) {
   function raycastObstacles(from,to) {
     const rd=sub(to,from), length=Math.hypot(rd.x,rd.y,rd.z);if(!length){const h=obstacleAt(from.x,from.y,from.z);return h.hit?{...h,point:{...from},fraction:0,distance:0}:null;}
     const dir={x:rd.x/length,y:rd.y/length,z:rd.z/length};let best=null;
-    for(const id of candidates(Math.min(from.x,to.x),Math.max(from.x,to.x),Math.min(from.z,to.z),Math.max(from.z,to.z))) {
+    for(const id of rayCandidates(from,to)) {
       const s=shapes[id], ba=sub(s.b,s.a), oa=sub(from,s.a), baba=dot(ba,ba), bard=dot(ba,dir), baoa=dot(ba,oa), rdoa=dot(dir,oa), oaoa=dot(oa,oa);
       let t=Infinity;
       if(oaoa<=sq(s.radius)||dot(sub(from,closest(from,s)),sub(from,closest(from,s)))<=sq(s.radius))t=0;
