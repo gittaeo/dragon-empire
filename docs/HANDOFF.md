@@ -1,5 +1,10 @@
 # HANDOFF 로그 (최신이 위)
 
+## 2026-11-20 — [codex] GitHub README·개발 기록·플레이 화면
+**한 일**: README를 현재 원격 게임 기능·실행·조작법·미구현 범위로 갱신하고 CHANGELOG.md에 기존 Git 커밋 기준 개발 단계를 정리. `docs/media/`에 ed32380 커밋을 별도 실행하여 시작·게임 화면 PNG와 Lv20 화염 경로 GIF 기록.
+**테스트**: 별도 스냅샷 Chrome headless에서 자동 키 입력으로 비행·브레스 캡처, pageerror 0. PNG 시각 확인, GIF 30프레임 생성. 실제 사람 손 조작·모바일 테스트 아님.
+**다음 할 일**: Claude 진행 중인 game.js/index.html/style.css/ground.js/mission01.js와 관련 작업은 이번 문서 커밋에 포함하지 않았으므로 담당자가 별도 완료·커밋. README에서 지상/폴리모프는 개발 중으로 표기했으며 구현 완료 후 갱신 필요.
+**알려진 문제**: 문서 화면은 고정 커밋의 개발용 Lv20 설정으로 캡처. 공개 배포 링크 아님; 로컬 서버 주소만 안내.
 ## 2026-11-20 — [claude] 단계별 드래곤 3D 생성(승인 대기) + Codex 사운드·충돌 연결
 **한 일**:
 - 진화 콘셉트(evolution_lineup) + 해츨링 소스 이미지를 참고해 gpt_image_2_6로 드레이크·웜·엠페러 정면 3/4·날개 펼친 이미지 3장(각 0.25크레딧) → Meshy7 image_to_3d 3건(각 38크레딧, PBR, 25.9k tri) → assets/pending/models/evolution/ (git 미추적). 미리보기 previews/, 검토 페이지 enemy-review.html?set=evo. URL은 remote-assets.json.
@@ -197,6 +202,7 @@
 4. 레벨 구조를 BALANCE.md(Lv30, 4단계 진화)로 맞추기 — 사용자 결정 대기 중이나 추천안.
 **사용자 승인 대기**: 해츨링 3D 모델(뿔이 콘셉트보다 크고 앞으로 휨), 스카이박스·텍스처·VFX 시트.
 **테스트**: 브라우저 실행 테스트 없음. 정적 점검 결과는 docs/QA.md.
+
 
 
 
