@@ -1,6 +1,69 @@
 {
   "_note": "사용자 승인된 에셋만 등록 (COLLAB.md). 비어 있으면 게임은 절차적 도형 사용.",
   "assets": [
-    { "id": "dragon_hatchling", "file": "approved/dragon_hatchling.glb", "type": "glb", "rigged": false, "animations": [], "scale": 1.0, "forward": "+Z", "source": "Higgsfield image_to_3d (Meshy) job 564c7d41, 텍스처 1024 압축본", "approvedAt": "2026-11-20", "notes": "날갯짓은 assets-loader.js 버텍스 셰이더(flap)로 처리" }
+    {
+      "id": "dragon_hatchling",
+      "file": "approved/dragon_hatchling.glb",
+      "type": "glb",
+      "rigged": false,
+      "animations": [],
+      "scale": 1,
+      "forward": "+Z",
+      "source": "Higgsfield image_to_3d (Meshy) job 564c7d41, 텍스처 1024 압축본",
+      "approvedAt": "2026-11-20",
+      "notes": "날갯짓은 assets-loader.js 버텍스 셰이더(flap)로 처리"
+    },
+    {
+      "id": "enemy_lantern_moth",
+      "file": "approved/enemies/lantern_moth.glb",
+      "type": "glb",
+      "rigged": false,
+      "animations": [],
+      "scale": 1,
+      "forward": "+Z",
+      "source": "Higgsfield image_to_3d (Meshy 7) job 904eace7-b2e6-4787-a3dd-df193feb9b8c, 텍스처 1024 JPEG 압축본",
+      "triangles": 4949,
+      "approvedAt": "2026-11-20",
+      "notes": "등불 나방(약·빠름) · 콘셉트 assets/pending/concepts 크롭"
+    },
+    {
+      "id": "enemy_lantern_rider",
+      "file": "approved/enemies/lantern_rider.glb",
+      "type": "glb",
+      "rigged": false,
+      "animations": [],
+      "scale": 1,
+      "forward": "+Z",
+      "source": "Higgsfield image_to_3d (Meshy 7) job e9064cba-14fe-4e5b-ad0d-ce7fc7021324, 텍스처 1024 JPEG 압축본",
+      "triangles": 8302,
+      "approvedAt": "2026-11-20",
+      "notes": "등불 기수(표준) · 콘셉트 assets/pending/concepts 크롭"
+    },
+    {
+      "id": "enemy_chain_knight",
+      "file": "approved/enemies/chain_knight.glb",
+      "type": "glb",
+      "rigged": false,
+      "animations": [],
+      "scale": 1,
+      "forward": "+Z",
+      "source": "Higgsfield image_to_3d (Meshy 7) job 53b6dade-1b21-476e-a105-737da7e01091, 텍스처 1024 JPEG 압축본",
+      "triangles": 8224,
+      "approvedAt": "2026-11-20",
+      "notes": "사슬 기사(3단계~) · 콘셉트 assets/pending/concepts 크롭"
+    },
+    {
+      "id": "boss_lucerna",
+      "file": "approved/enemies/boss_lucerna.glb",
+      "type": "glb",
+      "rigged": false,
+      "animations": [],
+      "scale": 1,
+      "forward": "+Z",
+      "source": "Higgsfield image_to_3d (Meshy 7) job 29d5a0bf-c17f-457c-a200-cd85cd7a3030, 텍스처 1024 JPEG 압축본",
+      "triangles": 25826,
+      "approvedAt": "2026-11-20",
+      "notes": "보스 루세르나(엠페러 이후) · 콘셉트 assets/pending/concepts 크롭"
+    }
   ]
 }

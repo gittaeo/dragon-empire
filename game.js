@@ -67,6 +67,7 @@ const ENEMY_KINDS = {
   rider: {hp: 1, xp: 1, speed: 1, id: 'enemy_lantern_rider', len: 7, fallback: [0x493c54, 0x66516d, 1.15]},
   knight: {hp: 2, xp: 2, speed: .8, id: 'enemy_chain_knight', len: 6.5, fallback: [0x3d3a40, 0x9b3328, 1.45]},
 };
+const ENEMY_GROW = [1, 1.3, 1.65, 2];
 const KIND_MIX = [[.7, .3, 0], [.4, .6, 0], [.3, .5, .2], [.3, .4, .3]];
 const enemyTemplates = {};
 for (const [k, d] of Object.entries(ENEMY_KINDS)) { const t = dragon(d.fallback[0], d.fallback[1]); t.userData = {}; t.scale.setScalar(d.fallback[2]); enemyTemplates[k] = t; }
@@ -77,7 +78,8 @@ function makeEnemy(x, y, z, kind = pickKind()) {
   const K = ENEMY_KINDS[kind], e = enemyTemplates[kind].clone(), wings = [];
   e.traverse(o => { if (o.name === 'wing') wings.push(o); });
   e.position.set(x, y, z);
-  e.userData = {kind, wings, hp: STAGE.enemyHp[stage() - 1] * K.hp, xp: K.xp, speed: K.speed, glb: !!e.userData.glb, phase: Math.random() * 6.28, shootCd: 1.5 + Math.random() * 2.5, dash: 0, dashDir: new T.Vector3(), orbit: Math.random() < .5 ? 1 : -1};
+  const grow = ENEMY_GROW[stage() - 1]; e.scale.multiplyScalar(grow); // 플레이어가 커져도 적이 점처럼 보이지 않게
+  e.userData = {kind, grow, wings, hp: STAGE.enemyHp[stage() - 1] * K.hp, xp: K.xp, speed: K.speed, glb: !!e.userData.glb, phase: Math.random() * 6.28, shootCd: 1.5 + Math.random() * 2.5, dash: 0, dashDir: new T.Vector3(), orbit: Math.random() < .5 ? 1 : -1};
   scene.add(e); enemies.push(e); return e;
 }
 
@@ -346,7 +348,7 @@ function updateBolts(dt) {
     const b = bolts[i]; b.prev.copy(b.o.position); b.o.position.addScaledVector(b.v, dt); b.life -= dt;
     if (Math.random() < .7) { _pv.copy(b.v).multiplyScalar(-.08).add(tmp2.set((Math.random() - .5) * 7, (Math.random() - .5) * 7, (Math.random() - .5) * 7)); spark(b.o.position, path === 'storm' ? 0x77dfff : 0xff8a2a, _pv, (2 + Math.random() * 3) * fxScale(), .3 + Math.random() * .25); }
     let hit = null; const r2 = b.r * b.r;
-    for (const e of enemies) if (segDistSq(e.position, b.prev, b.o.position) < r2) { hit = e; break; }
+    for (const e of enemies) { const rr = b.r + 2 * ((e.userData.grow || 1) - 1); if (segDistSq(e.position, b.prev, b.o.position) < rr * rr) { hit = e; break; } }
     if (!hit && boss) { const rr = b.r + boss.userData.radius; if (segDistSq(boss.position, b.prev, b.o.position) < rr * rr) { damageBoss(b.dmg, b.o.position); b.life = 0; } }
     if (hit) { hit.userData.hp -= b.dmg; burst(b.o.position, path === 'storm' ? 0x7de6ff : 0xffa54c, 14, 22, Math.min(fxScale(), 1.5)); if (hit.userData.hp <= 0) killEnemy(hit); b.life = 0; }
     if (b.o.position.y < ground(b.o.position.x, b.o.position.z)) b.life = 0;
@@ -361,7 +363,7 @@ function updateEnemies(dt) {
   if (spawnBudget >= 4 && enemies.length + 4 <= cap && coronation < 0) { const n = Math.min(Math.floor(spawnBudget), cap - enemies.length, 6); spawnGroup(n); spawnBudget -= n; }
   shotTokens = Math.min(STAGE.shooters[st - 1], shotTokens + STAGE.shooters[st - 1] / 3 * dt);
   dashTimer -= dt;
-  const contactR = 3.2 * sc + 4;
+  const contactR = 3.2 * sc + 4 + 2 * (ENEMY_GROW[st - 1] - 1);
   for (const e of [...enemies]) {
     const u = e.userData; tmp.subVectors(player.position, e.position); const d = tmp.length(); tmp.divideScalar(d || 1);
     if (d > 450) { groupCenter(_c); e.position.set(_c.x + (Math.random() - .5) * 50, _c.y, _c.z + (Math.random() - .5) * 50); continue; }
@@ -459,14 +461,15 @@ refresh(); loop();
 loadManifest().then(() => loadModel('dragon_hatchling', {length: 9, rig: true})).then(m => {
   if (!m) return; player.children.forEach(c => c.visible = false); player.add(m); player.userData.model = m; setDragonPathVisual(m, path);
 }).catch(e => console.warn('[assets]', e));
-// 승인된 적·보스 GLB (manifest에 없으면 절차적 도형 유지)
+// 승인된 적·보스 GLB (manifest에 없으면 절차적 도형 유지). 텍스처를 약하게 자체발광시켜 등불이 보이게 함
+function glow(root, k) { root.traverse(o => { if (!o.isMesh || !o.material?.map) return; o.material.emissive = new T.Color(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = k; o.material.needsUpdate = true; }); }
 loadManifest().then(async () => {
   for (const [k, d] of Object.entries(ENEMY_KINDS)) {
     const m = await loadModel(d.id, {length: d.len}); if (!m) continue;
-    m.userData.glb = true; enemyTemplates[k] = m;
+    glow(m, .35); m.userData.glb = true; enemyTemplates[k] = m;
     for (const e of [...enemies]) if (e.userData.kind === k) { const q = e.position.clone(); removeEnemy(e); makeEnemy(q.x, q.y, q.z, k); }
   }
-  bossModel = await loadModel('boss_lucerna', {length: 70});
+  bossModel = await loadModel('boss_lucerna', {length: 70}); if (bossModel) glow(bossModel, .45);
 }).catch(e => console.warn('[assets] enemies', e));
 if (touch.isTouch) document.querySelector('.help')?.remove();
 // 디버그·테스트 훅 (읽기 전용 상태)

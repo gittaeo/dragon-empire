@@ -26,3 +26,14 @@
 3. 노멀도 같은 각도로 회전(`objectNormal`)해야 조명이 맞음. `uFlapSpeed`: 활공 2.0, 상승 7.0 rad/s, 대시 시 진폭 0.3로 축소.
 4. 대안(정밀): Blender에서 x>0.25 & y>0 영역을 별도 오브젝트 `Wing_L/Wing_R`로 분리하고 피벗을 어깨로 옮겨 GLB 재내보내기 → 런타임에 `wing.rotation.z = ±sin(t)*0.6`.
 5. 전방축 +Z이므로 비행 방향 정렬 시 `dragon.lookAt(pos + velocity)` 그대로 사용 가능(Three.js `lookAt`은 Object3D의 +Z를 목표로 향함).
+
+## 적·보스 (2026-11-20 사용자 승인)
+| id | 파일 | 출처 (Higgsfield Meshy 7 image_to_3d job) | 상업적 이용 | rigged | 삼각형 | 용량(1024 JPEG) | 전방축 |
+|---|---|---|---|---|---|---|---|
+| enemy_lantern_moth | assets/approved/enemies/lantern_moth.glb | 904eace7-b2e6-4787-a3dd-df193feb9b8c | 가능 | 아니오 | 4,949 | 0.62 MB | +Z |
+| enemy_lantern_rider | assets/approved/enemies/lantern_rider.glb | e9064cba-14fe-4e5b-ad0d-ce7fc7021324 | 가능 | 아니오 | 8,302 | 0.82 MB | +Z |
+| enemy_chain_knight | assets/approved/enemies/chain_knight.glb | 53b6dade-1b21-476e-a105-737da7e01091 | 가능 | 아니오 | 8,224 | 0.94 MB | +Z |
+| boss_lucerna | assets/approved/enemies/boss_lucerna.glb | 29d5a0bf-c17f-457c-a200-cd85cd7a3030 | 가능 | 아니오 | 25,826 | 2.34 MB | +Z |
+- 소스: assets/pending/concepts/lantern_minions.png, boss_lucerna.png 에서 정면 1장씩 크롭(뒷면은 AI 추정). 원본 2048 GLB는 assets/pending/models/enemies(git 제외).
+- 압축: `node scripts/shrink-glb.mjs in.glb out.glb 1024` (sharp, 지오메트리 동일).
+- 게임 연출: 리깅 없음 → 롤·나방 scale 날갯짓, 텍스처 emissive 0.35(보스 0.45)로 등불 발광. 적 크기 단계별 ×1/1.3/1.65/2.
