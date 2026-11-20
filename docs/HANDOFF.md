@@ -1,5 +1,10 @@
 # HANDOFF 로그 (최신이 위)
 
+## 2026-11-20 — [codex] 절차적 오디오와 랜드마크 충돌 API
+**한 일**: audio.js의 20종 WebAudio 효과음·주변음, 음량/음소거 저장, 거리 감쇠·초당 제한 및 audio-test.html·docs/AUDIO.md 추가. world/obstacles.js 공간 해시 및 아치/탑/떠 있는 섬 근사 충돌을 terrain.js에 연결.
+**Claude 연결 작업**: createAudio()는 첫 사용자 입력에서 자동 활성화. 상세 호출은 docs/AUDIO.md 참고. terrain.obstacleAt(x,y,z,radius)는 {hit,normal:{x,y,z},depth,obstacle} 반환(겹친 장애물 중 최대 침투); 위치에 normal*depth를 더해 밀어내고 재검사. terrain.raycastObstacles(from,to)는 첫 {point,normal,distance,fraction,obstacle} 또는 null 반환. 좌표는 월드 좌표·미터. game.js에는 아직 연결하지 않음.
+**진행 중/알려진 문제**: 충돌은 메시가 아닌 캡슐/구 근사(섬·아치 가장자리 오차 가능), 복수 장애물 동시 침투는 반복 해결 필요. 초장거리 선분은 공간 해시의 범위 전체를 조회하므로 성능 재확인. 오디오는 실제 청음·스피커 및 모바일 실기기 미검증; 스테레오 팬은 청취자 기준 좌표 필요.
+**테스트**: node --test tests/audio.test.mjs tests/obstacles.test.mjs 6/6 통과. Chrome headless SwiftShader 실제 terrain의 탑·아치 겹침 확인, pageerror 0, 탑 부근 obstacleAt 1만 회 약 6.4ms(이 PC, 단일 위치, raycast 및 모바일 성능 미측정). 게임 충돌 및 사운드 통합 테스트는 Claude 연결 후 필요.
 ## 2026-11-20 — [claude] 진화가 눈에 보이게 + 진화 확인용 빠른 성장
 **배경**: 사용자가 옆 창에서 `?lv=30`(이미 엠페러)으로 플레이해 진화를 못 봄. 또 4단계 모두 같은 모델이고 카메라가 크기만큼 멀어져 진화해도 거의 같아 보였음.
 **한 일**: 카메라 거리 22/30/42/58 → 22/27/34/44(커진 몸이 화면에서 커 보이게). 단계별 외형: 날개 폭 ×1/1.12/1.24/1.38, 몸 길이 ×1~1.2, 용암 발광 ×1/1.6/2.3/3.2(맥동). 엠페러: 머리 위 왕관형 금빛 후광(폭풍은 하늘색)+불씨 입자. 테스트 전용 `?xp=8`(성장 XP 배수, 최대 20). 옆 창 주소 `?live=1&xp=8`.
@@ -179,6 +184,7 @@
 4. 레벨 구조를 BALANCE.md(Lv30, 4단계 진화)로 맞추기 — 사용자 결정 대기 중이나 추천안.
 **사용자 승인 대기**: 해츨링 3D 모델(뿔이 콘셉트보다 크고 앞으로 휨), 스카이박스·텍스처·VFX 시트.
 **테스트**: 브라우저 실행 테스트 없음. 정적 점검 결과는 docs/QA.md.
+
 
 
 

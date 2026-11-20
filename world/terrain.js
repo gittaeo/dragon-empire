@@ -5,6 +5,7 @@
 // - 조명/하늘/안개는 만들지 않음(timeofday.js 담당). 모든 머티리얼은 표준 라이팅 + fog 를 받음.
 import * as THREE from '../vendor/three.module.js';
 import { mergeGeometries, mergeVertices } from '../vendor/addons/BufferGeometryUtils.js';
+import { createObstacleField } from './obstacles.js';
 
 // ───────────────────────── 노이즈 ─────────────────────────
 function mulberry32(a) {
@@ -657,6 +658,7 @@ diffuseColor.a = mix(0.35, 0.86, smoothstep(0.0, 0.3, wDepth)) + foam*0.4;`)
 		return g;
 	}
 	// 1) 계곡 입구의 거대 아치 바위
+	const obstacleShapes = [];
 	const archZ = 1250 * K, archCX = valleyX(archZ);
 	const archSpan = 250 * K, archRise = 210;
 	{
@@ -670,6 +672,7 @@ diffuseColor.a = mix(0.35, 0.86, smoothstep(0.0, 0.3, wDepth)) + foam*0.4;`)
 		}
 		pts.push(new THREE.Vector3(archCX + archSpan * 1.04, yr - 40, archZ));
 		const curve = new THREE.CatmullRomCurve3(pts);
+		for (let i=0;i<36;i++) { const u=(i+.5)/36, foot=Math.pow(Math.abs(u-.5)*2,3); obstacleShapes.push({id:'arch',a:curve.getPointAt(i/36),b:curve.getPointAt((i+1)/36),radius:(26+34*foot)*1.15}); }
 		const TUB = 72, RAD = 12;
 		let g = new THREE.TubeGeometry(curve, TUB, 1, RAD, false);
 		const p = g.attributes.position, uv = g.attributes.uv, v = new THREE.Vector3(), cpt = new THREE.Vector3();
@@ -722,6 +725,7 @@ diffuseColor.a = mix(0.35, 0.86, smoothstep(0.0, 0.3, wDepth)) + foam*0.4;`)
 		}
 	}
 	placeTower(-1); placeTower(1);
+	for (const top of towerTops) obstacleShapes.push({id:'tower',a:{x:top.x,y:top.y-120,z:top.z},b:{x:top.x,y:top.y+29,z:top.z},radius:24});
 	{
 		const [A, B] = towerTops;
 		for (let c = 0; c < 3; c++) {
@@ -779,6 +783,8 @@ diffuseColor.a = mix(0.35, 0.86, smoothstep(0.0, 0.3, wDepth)) + foam*0.4;`)
 			g.setAttribute('color', new THREE.BufferAttribute(c, 3));
 			landParts.push(g);
 			islands.push({ x, y, z, R });
+			// 중첩된 구들로 섬의 납작한 윗면과 아래로 가늘어지는 형태를 근사한다.
+			for (const [dy,r] of [[-0.15,0.85],[-0.55,0.62],[-1.0,0.34]]) { const c={x,y:y+dy*R,z}; obstacleShapes.push({id:'island',a:c,b:c,radius:r*R}); }
 			// 섬 위 나무
 			const nt = 3 + Math.floor(R / 18);
 			for (let t = 0; t < nt; t++) {
@@ -1199,11 +1205,13 @@ diffuseColor.a = mix(0.35, 0.86, smoothstep(0.0, 0.3, wDepth)) + foam*0.4;`)
 		disposables.length = 0;
 	}
 
+	const obstacleField = createObstacleField(obstacleShapes);
 	update(spawnPoint, 0);
 	if (env) applyEnv(env);
 
 	return {
 		group, heightAt, waterLevel, spawnPoint, update, setSunDirection, dispose,
+		obstacleAt: obstacleField.obstacleAt, raycastObstacles: obstacleField.raycastObstacles,
 		// 부가 정보(선택 사용)
 		landmarks: { blossoms: blossomSpots, arch: new THREE.Vector3(archCX, heightAt(archCX, archZ) + archRise, archZ), towers: towerTops, islands, spires: spires.map((s) => new THREE.Vector3(s.x, heightAt(s.x, s.z), s.z)) },
 		lanternMaterial: lanternMat,
