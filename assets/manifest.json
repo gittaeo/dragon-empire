@@ -1,0 +1,6 @@
+{
+  "_note": "사용자 승인된 에셋만 등록 (COLLAB.md). 비어 있으면 게임은 절차적 도형 사용.",
+  "assets": [
+    { "id": "dragon_hatchling", "file": "approved/dragon_hatchling.glb", "type": "glb", "rigged": false, "animations": [], "scale": 1.0, "forward": "+Z", "source": "Higgsfield image_to_3d (Meshy) job 564c7d41, 텍스처 1024 압축본", "approvedAt": "2026-11-20", "notes": "날갯짓은 assets-loader.js 버텍스 셰이더(flap)로 처리" }
+  ]
+}

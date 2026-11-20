@@ -1,5 +1,7 @@
 // 드래곤 엠파이어 — 월드 지형 모듈 (랜턴 해협)
-// createTerrain({ scene, renderer, seed, size, textures }) → { group, heightAt, waterLevel, spawnPoint, update, setSunDirection, dispose }
+// createTerrain({ scene, renderer, seed, size, textures, env, detail }) → { group, heightAt, waterLevel, spawnPoint, update, setSunDirection, applyEnv, dispose }
+// - env: world/env-assets.js loadEnvAssets() 결과. 생성 후 terrain.applyEnv(env) 로 나중에 주입해도 됨(비동기 로드 → 시작 지연 없음).
+// - detail: true 면 능선 침식 디테일 노이즈를 높이에 추가(기본 false = 기존 지형 그대로).
 // - 조명/하늘/안개는 만들지 않음(timeofday.js 담당). 모든 머티리얼은 표준 라이팅 + fog 를 받음.
 import * as THREE from '../vendor/three.module.js';
 import { mergeGeometries, mergeVertices } from '../vendor/addons/BufferGeometryUtils.js';
@@ -44,7 +46,7 @@ const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t
 const srgb = (r, g, b) => [Math.pow(r, 2.2), Math.pow(g, 2.2), Math.pow(b, 2.2)];
 
 // ───────────────────────── 메인 ─────────────────────────
-export function createTerrain({ scene, renderer, seed = 7, size = 6000, textures = {}, clouds = true } = {}) {
+export function createTerrain({ scene, renderer, seed = 7, size = 6000, textures = {}, clouds = true, env = null, detail = false } = {}) {
 	const rand = mulberry32(seed * 9973 + 17);
 	const N = makeSimplex2(rand);
 	const half = size / 2;
@@ -109,6 +111,12 @@ export function createTerrain({ scene, renderer, seed = 7, size = 6000, textures
 		const terr = (Math.floor(q) + smooth(0.35, 0.65, fq)) * step;
 		mount = lerp(mount, terr, 0.35 * (1 - e));
 		let h = lerp(floorH, mount, t);
+		if (detail) {
+			// 능선 침식 디테일(골짜기·암릉): 산지에만, 고도 높을수록 강하게
+			const rd = ridged(wx * 0.0042 + 31, wz * 0.0042 - 17, 3);
+			const gul = fbm(wx * 0.011 + 5, wz * 0.0035, 2);
+			h += t * smooth(70, 300, h) * ((rd - 0.33) * 58 + gul * 14);
+		}
 		// 고봉
 		for (let i = 0; i < spires.length; i++) {
 			const s = spires[i];
@@ -215,6 +223,11 @@ export function createTerrain({ scene, renderer, seed = 7, size = 6000, textures
 		uMeadow: { value: white }, uCliff: { value: white }, uSnow: { value: white },
 		uHas: { value: new THREE.Vector3(0, 0, 0) },
 		uTexScale: { value: new THREE.Vector3(1 / 24, 1 / 40, 1 / 30) },
+		// env 텍스처(ENV_TEX define 일 때만 사용)
+		uEM: { value: white }, uEMn: { value: white }, uEC: { value: white }, uECn: { value: white },
+		uES: { value: white }, uESn: { value: white }, uEP: { value: white }, uEPn: { value: white },
+		uEScale: { value: new THREE.Vector4(1 / 6, 1 / 10, 1 / 8, 1 / 4) }, // meadow, cliff, snow, path (1/타일링m)
+		uWaterY: { value: waterLevel },
 	};
 	const terrainMat = track(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0.0 }));
 	terrainMat.onBeforeCompile = (sh) => {
@@ -226,10 +239,27 @@ export function createTerrain({ scene, renderer, seed = 7, size = 6000, textures
 			.replace('#include <common>', `#include <common>
 varying vec3 vBlend; varying vec3 vWPos; varying vec3 vWNrm;
 uniform sampler2D uMeadow; uniform sampler2D uCliff; uniform sampler2D uSnow; uniform vec3 uHas; uniform vec3 uTexScale;
+#ifdef ENV_TEX
+uniform sampler2D uEM; uniform sampler2D uEMn; uniform sampler2D uEC; uniform sampler2D uECn;
+uniform sampler2D uES; uniform sampler2D uESn; uniform sampler2D uEP; uniform sampler2D uEPn;
+uniform vec4 uEScale; uniform float uWaterY;
+vec4 eW; float eFade; float eMac; // color → normal 단계 공유(meadow, cliff, snow, path 가중치)
+#endif
 float th_hash(vec2 p){ p = fract(p*vec2(123.34, 456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
 float th_vnoise(vec2 p){ vec2 i=floor(p); vec2 f=fract(p); f=f*f*(3.0-2.0*f);
   float a=th_hash(i), b=th_hash(i+vec2(1,0)), c=th_hash(i+vec2(0,1)), d=th_hash(i+vec2(1,1));
-  return mix(mix(a,b,f.x), mix(c,d,f.x), f.y); }`)
+  return mix(mix(a,b,f.x), mix(c,d,f.x), f.y); }
+#ifdef ENV_TEX
+// 반복 숨김: 회전·축소한 두 번째 샘플을 매크로 노이즈로 섞음
+vec2 e_rot(vec2 uv){ return vec2(uv.x*0.8 - uv.y*0.6, uv.x*0.6 + uv.y*0.8) * 0.43 + vec2(0.37, 0.71); }
+vec3 e_tex2(sampler2D t, vec2 uv, float m){ return mix(texture2D(t, uv).rgb, texture2D(t, e_rot(uv)).rgb, m); }
+vec2 e_nrm2(sampler2D t, vec2 uv, float m){ vec2 a = texture2D(t, uv).xy, b = texture2D(t, e_rot(uv)).xy; return mix(a, b, m)*2.0 - 1.0; }
+// 절벽: 층리는 수평 유지, 두 번째 샘플은 비등방 스케일+오프셋
+vec2 e_cl2(vec2 uv){ return uv*vec2(0.47, 0.61) + vec2(0.31, 0.17); }
+vec3 e_texC(sampler2D t, vec2 uv, float m){ return mix(texture2D(t, uv).rgb, texture2D(t, e_cl2(uv)).rgb, m); }
+vec2 e_nrmC(sampler2D t, vec2 uv, float m){ return mix(texture2D(t, uv).xy, texture2D(t, e_cl2(uv)).xy, m)*2.0 - 1.0; }
+vec3 e_avg(sampler2D t){ return max(textureLod(t, vec2(0.5), 12.0).rgb, vec3(0.02)); }
+#endif`)
 			.replace('#include <color_fragment>', `#include <color_fragment>
 {
   vec3 base = diffuseColor.rgb;
@@ -253,8 +283,68 @@ float th_vnoise(vec2 p){ vec2 i=floor(p); vec2 f=fract(p); f=f*f*(3.0-2.0*f);
   float streak = th_vnoise(vec2(hz*0.03, vWPos.y*0.18))*0.6 + th_vnoise(vec2(hz*0.12, vWPos.y*0.5))*0.4;
   float crack = smoothstep(0.62, 0.75, th_vnoise(vec2(hz*0.25, vWPos.y*0.04)));
   col *= 1.0 - rockness*(0.32*(streak-0.5) + 0.25*crack*fine);
+#ifdef ENV_TEX
+  {
+    vec3 Nw = normalize(vWNrm);
+    float slope = 1.0 - Nw.y;
+    float mac = clamp(th_vnoise(vWPos.xz*0.0045)*0.7 + th_vnoise(vWPos.xz*0.021)*0.3, 0.0, 1.0);
+    float fade = 1.0 - smoothstep(320.0, 1500.0, dist);
+    float other = max(0.0, 1.0 - wsum);
+    // 흙길: 강가·계곡 바닥 패치·중간 경사(절벽 기슭)
+    float riv = (1.0 - smoothstep(uWaterY + 2.5, uWaterY + 8.0 + 10.0*mac, vWPos.y)) * (1.0 - smoothstep(0.12, 0.3, slope));
+    float patchy = smoothstep(0.6, 0.74, th_vnoise(vWPos.xz*0.012 + 3.1)) * (1.0 - smoothstep(50.0, 140.0, vWPos.y));
+    float dirtB = smoothstep(0.12, 0.22, slope + 0.1*(mac - 0.5)) * 0.6 * smoothstep(0.35, 0.65, th_vnoise(vWPos.xz*0.025 + 1.7));
+    float wP = vBlend.x * clamp(max(max(riv, patchy*0.5), dirtB), 0.0, 1.0);
+    eW = vec4(vBlend.x - wP, vBlend.y, vBlend.z, wP);
+    eFade = fade; eMac = mac;
+    if (fade > 0.001) {
+      vec3 cE = base * other;
+      if (eW.x > 0.005) { vec3 t = e_tex2(uEM, vWPos.xz*uEScale.x, mac); vec3 c = base * (t / e_avg(uEM)); c = mix(c, vec3(dot(c, vec3(0.3, 0.59, 0.11))), 0.18); cE += eW.x * c; }
+      if (eW.w > 0.005) { vec3 t = e_tex2(uEP, vWPos.xz*uEScale.w, mac); cE += eW.w * mix(t*0.9, base * (t / e_avg(uEP)), 0.3); }
+      if (eW.z > 0.005) { vec3 t = e_tex2(uES, vWPos.xz*uEScale.z, mac); cE += eW.z * mix(t, base * (t / e_avg(uES)), 0.25); }
+      if (eW.y > 0.005) {
+        vec3 tw = pow(abs(Nw), vec3(5.0)); tw /= (tw.x + tw.y + tw.z);
+        float cs = uEScale.y;
+        float warp = (th_vnoise(vWPos.xz*0.006) - 0.5)*16.0 + (th_vnoise(vWPos.xz*0.03) - 0.5)*3.0; // 지층 굴곡
+        vec3 t = e_texC(uEC, vec2(vWPos.z, vWPos.y + warp)*cs, mac)*tw.x
+               + texture2D(uEC, vWPos.xz*cs*0.7).rgb*tw.y
+               + e_texC(uEC, vec2(vWPos.x, vWPos.y + warp)*cs, mac)*tw.z;
+        vec3 ca = e_avg(uEC);
+        // 바위 매크로 색(정점색: 지층 띠·따뜻/차가운 변화) × 텍스처 디테일
+        vec3 cc = mix(base * (t / ca), t * dot(base, vec3(0.333)) / dot(ca, vec3(0.333)), 0.35);
+        cE += eW.y * cc;
+      }
+      // 매크로 밝기 변화로 반복 추가 은폐
+      cE *= 0.88 + 0.24*th_vnoise(vWPos.xz*0.009 + 7.0);
+      col = mix(col, cE, fade);
+    }
+  }
+#endif
   diffuseColor.rgb = col;
-}`);
+}`)
+			.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+#ifdef ENV_TEX
+if (eFade > 0.001) {
+  vec3 Nw = normalize(vWNrm);
+  vec3 pert = vec3(0.0);
+  float mac = eMac;
+  if (eW.x > 0.005) { vec2 m = e_nrm2(uEMn, vWPos.xz*uEScale.x, mac); pert += eW.x * vec3(m.x, 0.0, m.y) * 0.8; }
+  if (eW.w > 0.005) { vec2 m = e_nrm2(uEPn, vWPos.xz*uEScale.w, mac); pert += eW.w * vec3(m.x, 0.0, m.y); }
+  if (eW.z > 0.005) { vec2 m = e_nrm2(uESn, vWPos.xz*uEScale.z, mac); pert += eW.z * vec3(m.x, 0.0, m.y) * 0.8; }
+  if (eW.y > 0.005) {
+    vec3 tw = pow(abs(Nw), vec3(5.0)); tw /= (tw.x + tw.y + tw.z);
+    float cs = uEScale.y;
+    float warp = (th_vnoise(vWPos.xz*0.006) - 0.5)*16.0 + (th_vnoise(vWPos.xz*0.03) - 0.5)*3.0;
+    vec2 nx = e_nrmC(uECn, vec2(vWPos.z, vWPos.y + warp)*cs, mac);
+    vec2 nz = e_nrmC(uECn, vec2(vWPos.x, vWPos.y + warp)*cs, mac);
+    vec2 ny = texture2D(uECn, vWPos.xz*cs*0.7).xy*2.0 - 1.0;
+    pert += eW.y * 0.9 * (vec3(0.0, nx.y, nx.x)*tw.x + vec3(ny.x, 0.0, ny.y)*tw.y + vec3(nz.x, nz.y, 0.0)*tw.z);
+  }
+  float nf = 1.0 - smoothstep(120.0, 750.0, length(vWPos - cameraPosition));
+  Nw = normalize(Nw + pert * nf);
+  normal = normalize((viewMatrix * vec4(Nw, 0.0)).xyz);
+}
+#endif`)
 	};
 
 	// 텍스처 로드(실패하면 절차적 그대로)
@@ -501,7 +591,7 @@ diffuseColor.a = mix(0.35, 0.86, smoothstep(0.0, 0.3, wDepth)) + foam*0.4;`)
 	function addInst(kind, x, y, z, sx, sy, rotY, r, g, b, tilt = 0) {
 		_e.set(tilt * (rand() - 0.5), rotY, tilt * (rand() - 0.5)); _q.setFromEuler(_e);
 		_m.compose(_p.set(x, y, z), _q, _s.set(sx, sy, sx));
-		kind.list.push({ x, y, z, m: _m.toArray(), c: [r, g, b] });
+		kind.list.push({ x, y, z, m: _m.toArray(), c: [r, g, b], sx, sy, rotY, ex: _e.x, ez: _e.z });
 	}
 	const slopeAt = (x, z) => {
 		const fx = clamp(Math.round((x + half) / cell), 0, G), fz = clamp(Math.round((z + half) / cell), 0, G);
@@ -514,7 +604,7 @@ diffuseColor.a = mix(0.35, 0.86, smoothstep(0.0, 0.3, wDepth)) + foam*0.4;`)
 		const h = heightAt(px, pz);
 		if (h < waterLevel + 3.5) continue;
 		const ny = slopeAt(px, pz);
-		if (ny < 0.86) continue;
+		if (ny < (detail ? 0.8 : 0.86)) continue; // detail 지형은 경사가 거칠어 허용치 완화
 		const fd = forestD(px, pz);
 		const sl = snowLineAt(px, pz);
 		if (h > sl - 60) continue;
@@ -779,54 +869,284 @@ diffuseColor.a = mix(0.35, 0.86, smoothstep(0.0, 0.3, wDepth)) + foam*0.4;`)
 	}
 
 	// ───────── 인스턴스 메시(동적 재배치) ─────────
+	// 각 kind 는 lods 배열(가까운 것부터)을 가짐: { geo, mat, r, cap, cast, mesh }. 거리 안 + cap 미만이면 해당 LOD, 아니면 다음 LOD.
 	const CELL = 250 * K, CG = Math.ceil(size / CELL) + 2;
-	kinds.forEach((k) => {
+	function buildKind(k) {
+		if (!k.lods) k.lods = [{ geo: k.near, mat: k.mat, r: k.nearR, cap: k.capN, cast: true }, { geo: k.far, mat: k.mat, r: k.farR, cap: k.capF, cast: false }];
 		k.cells = new Map();
 		k.list.forEach((t) => {
 			const key = clamp(Math.floor((t.x + half) / CELL), 0, CG - 1) + clamp(Math.floor((t.z + half) / CELL), 0, CG - 1) * CG;
 			if (!k.cells.has(key)) k.cells.set(key, []);
 			k.cells.get(key).push(t);
 		});
-		const mk = (geo, cap, cast) => {
-			if (!geo || !cap) return null;
-			const im = new THREE.InstancedMesh(geo, k.mat, cap);
+		k.lods.forEach((L, li) => {
+			L.mesh = null;
+			if (!L.geo || !L.cap) return;
+			const im = new THREE.InstancedMesh(L.geo, L.mat, L.cap);
 			im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-			im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3);
+			im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(L.cap * 3), 3);
 			im.instanceColor.setUsage(THREE.DynamicDrawUsage);
-			im.count = 0; im.frustumCulled = false; im.castShadow = cast; im.receiveShadow = true;
+			im.count = 0; im.frustumCulled = false; im.castShadow = !!L.cast; im.receiveShadow = true;
+			im.name = k.name + (k.lodNames ? '_' + k.lodNames[li] : li === 0 ? '_near' : '_far');
 			group.add(im);
-			return im;
-		};
-		k.nearMesh = mk(k.near, k.capN, true); if (k.nearMesh) k.nearMesh.name = k.name + '_near';
-		k.farMesh = mk(k.far, k.capF, false); if (k.farMesh) k.farMesh.name = k.name + '_far';
-	});
+			L.mesh = im;
+			// 그림자 프록시: 고폴리 L0 대신 저폴리 지오메트리로 그림자 패스만 렌더(같은 인스턴스 행렬 공유)
+			if (L.shadowGeo) {
+				im.castShadow = false;
+				const px = new THREE.InstancedMesh(L.shadowGeo, shadowOnlyMat, L.cap);
+				px.instanceMatrix = im.instanceMatrix;
+				px.count = 0; px.frustumCulled = false; px.castShadow = true; px.receiveShadow = false;
+				px.name = im.name + '_shadow';
+				group.add(px);
+				L.proxy = px;
+			}
+		});
+		k.nearMesh = k.lods[0].mesh; k.farMesh = k.lods[1] ? k.lods[1].mesh : null;
+	}
+	const shadowOnlyMat = track(new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
+	kinds.forEach(buildKind);
 	const lastPos = new THREE.Vector3(1e9, 0, 0);
+	// env 모드 전용: 카메라 시야(수평 원뿔) 밖의 L1+ 인스턴스 생략 → 삼각형 절감. L0 는 그림자 위해 유지.
+	let cullCam = null, lastYaw = 1e9;
+	const _fw = new THREE.Vector3();
 	function rebuildInstances(cam) {
+		let cfx = 0, cfz = 0, cosH = -2, keepR2 = 0;
+		if (cullCam) {
+			cullCam.getWorldDirection(_fw);
+			const l = Math.hypot(_fw.x, _fw.z);
+			if (l > 0.2) {
+				cfx = _fw.x / l; cfz = _fw.z / l;
+				const hf = Math.atan(Math.tan(THREE.MathUtils.degToRad(cullCam.fov) / 2) * Math.max(cullCam.aspect, 0.6));
+				cosH = Math.cos(Math.min(Math.PI * 0.95, hf + 0.32));
+				const above = cam.y - heightAt(cam.x, cam.z);
+				keepR2 = Math.pow(Math.max(90, above * 1.2), 2);
+			}
+		}
 		const cx = Math.floor((cam.x + half) / CELL), cz = Math.floor((cam.z + half) / CELL);
 		for (const k of kinds) {
-			const maxR = Math.max(k.nearR, k.farR), rc = Math.ceil(maxR / CELL) + 1;
+			const lods = k.lods, nl = lods.length;
+			let maxR = 0; for (const L of lods) if (L.mesh) maxR = Math.max(maxR, L.r);
+			const rc = Math.ceil(maxR / CELL) + 1;
 			const order = [];
 			for (let dz = -rc; dz <= rc; dz++) for (let dx = -rc; dx <= rc; dx++) {
 				const ix = cx + dx, iz = cz + dz; if (ix < 0 || iz < 0 || ix >= CG || iz >= CG) continue;
 				const arr = k.cells.get(ix + iz * CG); if (arr) order.push([dx * dx + dz * dz, arr]);
 			}
 			order.sort((a, b) => a[0] - b[0]);
-			let nn = 0, nf = 0;
-			const nM = k.nearMesh, fM = k.farMesh;
-			const nR2 = k.nearR * k.nearR, fR2 = k.farR * k.farR;
+			const cnt = k._cnt || (k._cnt = new Int32Array(nl)), r2 = k._r2 || (k._r2 = lods.map((L) => L.r * L.r));
+			cnt.fill(0);
 			for (const [, arr] of order) {
 				for (const t of arr) {
 					const dx = t.x - cam.x, dy = (t.y - cam.y) * 0.5, dz = t.z - cam.z, d2 = dx * dx + dy * dy + dz * dz;
-					if (d2 < nR2 && nn < k.capN) {
-						nM.instanceMatrix.array.set(t.m, nn * 16); nM.instanceColor.array.set(t.c, nn * 3); nn++;
-					} else if (fM && d2 < fR2 && nf < k.capF) {
-						fM.instanceMatrix.array.set(t.m, nf * 16); fM.instanceColor.array.set(t.c, nf * 3); nf++;
+					const hd2 = dx * dx + dz * dz;
+					const behind = cosH > -1.5 && (dx * cfx + dz * cfz) < cosH * Math.sqrt(hd2);
+					const outView = behind && hd2 > keepR2;
+					const skipL0 = behind && hd2 > keepR2 * 0.2; // L0 슬롯은 시야 안 우선(뒤쪽은 가까운 것만)
+					for (let li = 0; li < nl; li++) {
+						const L = lods[li];
+						if (outView) break; // 시야 밖(주변 keepR 원 제외: 그림자용 유지)
+						if (li === 0 && skipL0) continue;
+						if (!L.mesh || d2 >= r2[li] || cnt[li] >= L.cap) continue;
+						const n = cnt[li]++;
+						L.mesh.instanceMatrix.array.set(t.m, n * 16); L.mesh.instanceColor.array.set(t.c, n * 3);
+						break;
 					}
 				}
 			}
-			if (nM) { nM.count = nn; nM.instanceMatrix.needsUpdate = true; nM.instanceColor.needsUpdate = true; nM.instanceMatrix.clearUpdateRanges(); nM.instanceColor.clearUpdateRanges(); nM.instanceMatrix.addUpdateRange(0, nn * 16); nM.instanceColor.addUpdateRange(0, nn * 3); }
-			if (fM) { fM.count = nf; fM.instanceMatrix.needsUpdate = true; fM.instanceColor.needsUpdate = true; fM.instanceMatrix.clearUpdateRanges(); fM.instanceColor.clearUpdateRanges(); fM.instanceMatrix.addUpdateRange(0, nf * 16); fM.instanceColor.addUpdateRange(0, nf * 3); }
+			for (let li = 0; li < nl; li++) {
+				const M = lods[li].mesh; if (!M) continue;
+				const n = cnt[li];
+				M.count = n; M.instanceMatrix.needsUpdate = true; M.instanceColor.needsUpdate = true;
+				if (lods[li].proxy) lods[li].proxy.count = n;
+				M.instanceMatrix.clearUpdateRanges(); M.instanceColor.clearUpdateRanges();
+				M.instanceMatrix.addUpdateRange(0, n * 16); M.instanceColor.addUpdateRange(0, n * 3);
+			}
 		}
+	}
+
+	// ───────── env(Higgsfield GLB/텍스처) 주입 ─────────
+	// 나무·바위를 GLB 지오메트리 InstancedMesh 로 교체 + 지형 텍스처 블렌드. 실패 항목(null)은 기존 절차적 유지.
+	// LOD: L0=GLB(텍스처, 가까움) → L1=정점색 단순화 메시(중거리) → L2=기존 저폴리(원거리, 종별 평균색으로 재채색)
+	let envApplied = null;
+	const blossomSpots = [];
+	// 원거리 활엽 수관: 팔면체(8 tri) + 구형 노멀(recolorFar) — 삼각형 예산 유지
+	const broadFarEnv = broadFar;
+	function recolorFar(geo, col, lo = 0.95, hi = 1.5) {
+		const g = geo.clone(), p = g.attributes.position, n = g.attributes.normal, c = new Float32Array(p.count * 3), v = new THREE.Vector3();
+		for (let i = 0; i < p.count; i++) {
+			const y = p.getY(i), k = lerp(lo, hi, clamp(y, 0, 1));
+			c[i * 3] = col.r * k; c[i * 3 + 1] = col.g * k; c[i * 3 + 2] = col.b * k;
+			// 구형 노멀(면 셰이딩 대신 둥근 수관)
+			v.set(p.getX(i), (y - 0.45) * 0.8 + 0.25, p.getZ(i)).normalize(); n.setXYZ(i, v.x, v.y, v.z);
+		}
+		g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+		return track(g);
+	}
+	function applyEnv(env, opt = {}) {
+		if (!env || envApplied) return false;
+		envApplied = env;
+		const Q = Object.assign({ camera: null, treeNearR: 180 * K, treeMidR: 520 * K, treeFarR: 2800 * K, capTree0: 24, capTree1: 400, rockNearR: 150 * K, rockMidR: 1100 * K }, opt);
+		if (Q.camera && Q.camera.isPerspectiveCamera) cullCam = Q.camera;
+		const T = env.trees || {}, R = env.rocks || {}, TX = env.textures || {};
+		// 1) 지형 텍스처
+		const tm = TX.meadow, tc = TX.cliff, ts = TX.snow, tp = TX.path;
+		if (tm && tc && ts && tp) {
+			terrainUniforms.uEM.value = tm.map; terrainUniforms.uEMn.value = tm.normal || white;
+			terrainUniforms.uEC.value = tc.map; terrainUniforms.uECn.value = tc.normal || white;
+			terrainUniforms.uES.value = ts.map; terrainUniforms.uESn.value = ts.normal || white;
+			terrainUniforms.uEP.value = tp.map; terrainUniforms.uEPn.value = tp.normal || white;
+			const rules = env.rules && env.rules.terrain_textures;
+			if (rules) {
+				const til = (n, d) => { const r = rules.find((t) => t.file && t.file.includes('/' + n + '.')); return 1 / ((r && r.placement && r.placement.tiling_m) || d); };
+				terrainUniforms.uEScale.value.set(til('meadow', 6), til('cliff', 10), til('snow', 8), til('path', 4));
+			}
+			// 6m 타일링은 비행 시점에서 너무 잘게 보여 1.6배 확대(시네마틱 스케일)
+			terrainUniforms.uEScale.value.multiplyScalar(1 / 1.6);
+			terrainUniforms.uEScale.value.y = 1 / 30; // 절벽은 산 스케일 층리가 보이도록 크게
+			terrainMat.defines = Object.assign(terrainMat.defines || {}, { ENV_TEX: 1 });
+			terrainMat.customProgramCacheKey = () => 'terrain_env';
+			terrainMat.needsUpdate = true;
+		}
+		// 2) 식생/바위 재구성
+		const oldK = kinds.slice();
+		const byName = Object.fromEntries(oldK.map((k) => [k.name, k]));
+		const snowN = (x, z, h) => clamp((h - waterLevel) / (snowLineAt(x, z) - waterLevel), 0, 1.2) * 0.85; // 정규화 고도(설선≈0.85)
+		const mk = (name, A, list, lodCfg) => {
+			const k = { name, list, lods: [], lodNames: [] };
+			lodCfg.forEach(([tag, geo, mat, r, cap, cast, shadowGeo]) => { if (geo) { k.lods.push({ geo, mat, r, cap, cast, shadowGeo }); k.lodNames.push(tag); } });
+			return k;
+		};
+		const mat4 = new THREE.Matrix4();
+		const recompose = (t, sx, sy, sz = sx, y = t.y) => {
+			_e.set(t.ex || 0, t.rotY || 0, t.ez || 0); _q.setFromEuler(_e);
+			mat4.compose(_p.set(t.x, y, t.z), _q, _s.set(sx, sy, sz));
+			return { x: t.x, y, z: t.z, m: mat4.toArray(), c: t.c };
+		};
+		const newKinds = [];
+		const lists = { conifer: [], broadleaf: [], blossom: [], granite: [], cliff: [] };
+		const treeSrc = [...(byName.conifer ? byName.conifer.list : []), ...(byName.broadleaf ? byName.broadleaf.list : [])];
+		const treeR = mulberry32(seed * 31 + 5);
+		// 종 배정: env_assets.json 고도대(conifer 0.45~0.85, broadleaf 0.1~0.5) + 노이즈 클러스터(활엽 3~5그루 군집 느낌)
+		for (const t of treeSrc) {
+			const h = heightAt(t.x, t.z), island = t.y > h + 30;
+			const a = snowN(t.x, t.z, island ? t.y : h);
+			const clump = N(t.x * 0.011 + 3.3, t.z * 0.011 - 1.7);
+			// 저지대 활엽 우세(최대 75%), 정규화 고도 0.25~0.45 사이 침엽으로 전환
+			let pB = 0.75 * (1 - smooth(0.22, 0.45, a + 0.1 * clump));
+			pB = clamp(pB + 0.3 * clump, 0.03, 0.85);
+			if (island) pB = 0.25;
+			const isB = treeR() < pB && T.broadleaf;
+			const sp = isB ? 'broadleaf' : 'conifer';
+			const v = 0.8 + 0.4 * treeR(); // ±20%
+			let s;
+			// 권장 스케일(침엽 10~16m, 활엽 8~12m)을 비행 시점 가독성 위해 ~1.3배
+			if (sp === 'conifer') s = lerp(14, 22, treeR()) * (1 - smooth(0.6, 0.85, a) * 0.3) * v;
+			else s = lerp(11, 16, treeR()) * v;
+			const sy = s, sx = s * (0.9 + 0.2 * treeR());
+			const tint = 0.86 + 0.24 * treeR();
+			const e = recompose(t, sx, sy, sx * (0.9 + 0.2 * treeR()));
+			e.c = [tint * (0.95 + 0.1 * treeR()), tint, tint * (0.92 + 0.12 * treeR())];
+			lists[sp].push(e);
+		}
+		// 벚나무 랜드마크: 평탄지·호숫가·섬 정상, 3~8그루, 군락 금지(서로 350m 이상)
+		if (T.blossom) {
+			const cands = [];
+			islands.forEach((il) => cands.push({ x: il.x + il.R * 0.15, z: il.z - il.R * 0.1, y: il.y + 3, score: 2 }));
+			for (let i = 0; i < 2600; i++) {
+				const x = (treeR() * 2 - 1) * half * 0.8, z = (treeR() * 2 - 1) * half * 0.8, h = heightAt(x, z);
+				if (h < waterLevel + 4) continue;
+				const ny = slopeAt(x, z), a = snowN(x, z, h);
+				if (ny < 0.975 || a < 0.06 || a > 0.55) continue;
+				const nearLake = Math.hypot(x - lakeX, z - lakeZ) < 650 * K ? 1.5 : 0;
+				const valley = Math.abs(x - valleyX(z)) < valleyW(z) * 0.9 ? 1 : 0;
+				cands.push({ x, z, y: h - 0.6, score: nearLake + valley + treeR() });
+			}
+			cands.sort((p, q) => q.score - p.score);
+			const pick = [];
+			for (const c of cands) { if (pick.length >= 8) break; if (pick.every((p) => Math.hypot(p.x - c.x, p.z - c.z) > 350 * K)) pick.push(c); }
+			for (const c of pick) {
+				blossomSpots.push(new THREE.Vector3(c.x, c.y, c.z));
+				const s = lerp(11, 15, treeR());
+				lists.blossom.push(recompose({ x: c.x, y: c.y, z: c.z, rotY: treeR() * 6.28 }, s * 1.1, s, s * 1.05));
+				lists.blossom[lists.blossom.length - 1].c = [1, 1, 1];
+			}
+		}
+		// 바위: 기존 바위 위치 → granite (권장 1.5~6m, 30% 묻기)
+		if (byName.rock) for (const t of byName.rock.list) {
+			const g = clamp(t.sy / 1.0, 1.5, 30);
+			const sx = t.sx * 1.45, sy = g * 0.95;
+			const e = recompose(t, sx, sy, sx * (0.85 + 0.3 * treeR()), t.y - sy * 0.05);
+			e.c = t.c.map((v) => v * 1.15); lists.granite.push(e);
+		}
+		// 강가 바위 추가
+		for (let i = 0; i < 2600; i++) {
+			const x = (treeR() * 2 - 1) * (half - 60), z = (treeR() * 2 - 1) * (half - 60), h = heightAt(x, z);
+			if (h < waterLevel + 0.5 || h > waterLevel + 7) continue;
+			if (slopeAt(x, z) < 0.8) continue;
+			const s = lerp(1.6, 5.5, Math.pow(treeR(), 1.6));
+			const t = 0.85 + 0.25 * treeR();
+			const e = recompose({ x, y: h - s * 0.3, z, rotY: treeR() * 6.28, ex: (treeR() - 0.5) * 0.4, ez: (treeR() - 0.5) * 0.4 }, s * (0.9 + 0.4 * treeR()), s * (0.6 + 0.3 * treeR()), s * (0.9 + 0.4 * treeR()));
+			e.c = [t, t, t * 0.97]; lists.granite.push(e);
+		}
+		// 절벽 kitbash: 절벽 기슭(위쪽 40m 가 급경사 30~70° 인데 발치는 완만한 곳), 18~34m, xz 비균일 0.8~1.4, 경사 아래로 향함
+		if (R.cliff) {
+			for (let i = 0; i < 60000 && lists.cliff.length < 300; i++) {
+				const x = (treeR() * 2 - 1) * (half - 80), z = (treeR() * 2 - 1) * (half - 80), h = heightAt(x, z);
+				if (h < waterLevel + 3) continue;
+				const fx = clamp(Math.round((x + half) / cell), 0, G), fz = clamp(Math.round((z + half) / cell), 0, G), kk = (fz * GV + fx) * 3;
+				const ny = NRM[kk + 1];
+				if (ny < 0.7 || ny > 0.95) continue; // 발치는 완만(≤45°)
+				const hl = Math.hypot(NRM[kk], NRM[kk + 2]) || 1, ux = -NRM[kk] / hl, uz = -NRM[kk + 2] / hl; // 오르막 방향
+				const up = heightAt(x + ux * 40, z + uz * 40) - h;
+				const rise = up / 40; // tan(경사)
+				if (rise < 0.7 || rise > 2.75) continue; // 위쪽은 35~70°
+				const a = snowN(x, z, h);
+				if (a > 1.0) continue;
+				const s = lerp(18, 34, Math.pow(treeR(), 1.3));
+				const rot = Math.atan2(-ux, -uz) + (treeR() - 0.5) * 0.5;
+				const t = 0.9 + 0.2 * treeR();
+				// 오르막 쪽으로 반쯤 파묻어 절벽에 붙은 암괴처럼
+				const px = x + ux * s * 0.25, pz = z + uz * s * 0.25;
+				const e = recompose({ x: px, y: h - s * 0.3, z: pz, rotY: rot, ex: (treeR() - 0.5) * 0.12, ez: (treeR() - 0.5) * 0.12 }, s * lerp(0.8, 1.4, treeR()), s * (0.6 + 0.35 * treeR()), s * lerp(0.8, 1.4, treeR()));
+				e.c = [t * 1.12, t * 1.1, t * 1.08]; lists.cliff.push(e);
+			}
+		}
+		// kinds 구성
+		const farOf = (name, geo, A) => (geo && A ? recolorFar(geo, A.avgColor) : null);
+		const L1 = env.lod1Material;
+		const treeKinds = [['conifer', coniferFar], ['broadleaf', broadFarEnv], ['blossom', broadFarEnv]];
+		for (const [name, farGeo] of treeKinds) {
+			const A = T[name];
+			if (!A) { // 폴백: 기존 절차적 kind 유지(blossom 은 없음)
+				if (byName[name]) newKinds.push(byName[name]);
+				continue;
+			}
+			const blossom = name === 'blossom';
+			newKinds.push(mk(name, A, lists[name], [
+				['glb', A.geometry, A.material, blossom ? 420 * K : Q.treeNearR, blossom ? 8 : Q.capTree0, true, A.lod1],
+				['mid', A.lod1, L1, blossom ? 3000 * K : Q.treeMidR, blossom ? 8 : Q.capTree1, true],
+				['far', blossom ? null : farOf(name, farGeo, A), vegMat, Q.treeFarR, name === 'conifer' ? 16000 : 12000, false],
+			]));
+		}
+		if (R.granite) newKinds.push(mk('rock', R.granite, lists.granite, [
+			['glb', R.granite.geometry, R.granite.material, Q.rockNearR, 40, true, R.granite.lod1],
+			['mid', R.granite.lod1, L1, Q.rockMidR, 2400, false],
+		]));
+		else if (byName.rock) newKinds.push(byName.rock);
+		if (R.cliff) newKinds.push(mk('cliffRock', R.cliff, lists.cliff, [
+			['glb', R.cliff.geometry, R.cliff.material, 320 * K, 16, true, R.cliff.lod1],
+			['mid', R.cliff.lod1, L1, 2200 * K, 300, false],
+		]));
+		// 교체: 대체된 기존 kind 의 메시 제거
+		for (const k of oldK) {
+			if (newKinds.includes(k)) continue;
+			for (const L of k.lods) if (L.mesh) { group.remove(L.mesh); L.mesh.dispose(); L.mesh = null; if (L.proxy) { group.remove(L.proxy); L.proxy = null; } }
+		}
+		kinds.length = 0;
+		for (const k of newKinds) { if (!k.cells) buildKind(k); kinds.push(k); }
+		lastPos.set(1e9, 0, 0);
+		if (lastCam) update(lastCam, 0);
+		return true;
 	}
 
 	// ───────── 스폰 ─────────
@@ -836,8 +1156,10 @@ diffuseColor.a = mix(0.35, 0.86, smoothstep(0.0, 0.3, wDepth)) + foam*0.4;`)
 	// ───────── update ─────────
 	let time = 0;
 	const _bb = new THREE.Vector3();
+	let lastCam = null;
 	function update(cameraPosition, dt = 0.016) {
 		time += dt;
+		if (cameraPosition) lastCam = (lastCam || new THREE.Vector3()).copy(cameraPosition);
 		waterUniforms.uTime.value = time;
 		if (cloudTex) cloudTex.offset.set(time * 0.0015, time * 0.0008);
 		const fogCol = scene.fog && scene.fog.color;
@@ -855,7 +1177,17 @@ diffuseColor.a = mix(0.35, 0.86, smoothstep(0.0, 0.3, wDepth)) + foam*0.4;`)
 				if (L !== c.cur) { c.levels[c.cur].visible = false; c.levels[L].visible = true; c.cur = L; }
 			}
 		}
-		if (lastPos.distanceToSquared(cameraPosition) > 45 * 45) { lastPos.copy(cameraPosition); rebuildInstances(cameraPosition); }
+		let yawMoved = false;
+		if (cullCam) {
+			cullCam.getWorldDirection(_fw);
+			const yaw = Math.atan2(_fw.x, _fw.z);
+			let dy = Math.abs(yaw - lastYaw); if (dy > Math.PI) dy = 2 * Math.PI - dy;
+			if (dy > 0.2) { yawMoved = true; }
+		}
+		if (yawMoved || lastPos.distanceToSquared(cameraPosition) > 45 * 45) {
+			lastPos.copy(cameraPosition); rebuildInstances(cameraPosition);
+			if (cullCam) { cullCam.getWorldDirection(_fw); lastYaw = Math.atan2(_fw.x, _fw.z); }
+		}
 	}
 
 	function setSunDirection(v) { if (v) waterUniforms.uSunDir.value.copy(v).normalize(); }
@@ -868,13 +1200,15 @@ diffuseColor.a = mix(0.35, 0.86, smoothstep(0.0, 0.3, wDepth)) + foam*0.4;`)
 	}
 
 	update(spawnPoint, 0);
+	if (env) applyEnv(env);
 
 	return {
 		group, heightAt, waterLevel, spawnPoint, update, setSunDirection, dispose,
 		// 부가 정보(선택 사용)
-		landmarks: { arch: new THREE.Vector3(archCX, heightAt(archCX, archZ) + archRise, archZ), towers: towerTops, islands, spires: spires.map((s) => new THREE.Vector3(s.x, heightAt(s.x, s.z), s.z)) },
+		landmarks: { blossoms: blossomSpots, arch: new THREE.Vector3(archCX, heightAt(archCX, archZ) + archRise, archZ), towers: towerTops, islands, spires: spires.map((s) => new THREE.Vector3(s.x, heightAt(s.x, s.z), s.z)) },
 		lanternMaterial: lanternMat,
 		valleyCenterX: valleyX,
-		stats: () => Object.fromEntries(kinds.map((k) => [k.name, { total: k.list.length, near: k.nearMesh ? k.nearMesh.count : 0, far: k.farMesh ? k.farMesh.count : 0 }])),
+		applyEnv,
+		stats: () => Object.fromEntries(kinds.map((k) => [k.name, { total: k.list.length, near: k.nearMesh ? k.nearMesh.count : 0, far: k.lods.slice(1).reduce((a, L) => a + (L.mesh ? L.mesh.count : 0), 0), lods: k.lods.map((L) => (L.mesh ? L.mesh.count : 0)) }])),
 	};
 }

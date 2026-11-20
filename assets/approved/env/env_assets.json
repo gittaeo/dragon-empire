@@ -1,0 +1,226 @@
+{
+ "version": 1,
+ "altitude_note": "altitude = 0..1 normalized terrain height",
+ "license": "Higgsfield 유료 플랜(plus) 생성물 - 상업적 이용 가능",
+ "assets": [
+  {
+   "file": "env/trees/conifer.glb",
+   "triangles": 3567,
+   "bytes": 876204,
+   "job_id_3d": "ceaab71f-323f-4ec5-8869-0a7f16843db2",
+   "job_id_image": "5344e70c-7e98-4ddb-b37b-e6a6f5ec1ccc",
+   "model": "image_to_3d (Meshy via Higgsfield) + gpt_image_2_6",
+   "normalized": "Y-up, origin=bottom center (trunk base), height=1.0 unit",
+   "texture": "baseColor/MR/normal JPEG 1024",
+   "recommended_scale_m": [
+    10,
+    16
+   ],
+   "placement": {
+    "altitude": [
+     0.45,
+     0.85
+    ],
+    "slope_deg": [
+     0,
+     35
+    ],
+    "density_per_100m2": 1.2,
+    "notes": "고산대 군락, 설선 아래 밀집. 랜덤 Y회전, 스케일 ±20%"
+   },
+   "preview": "env/previews/conifer.png"
+  },
+  {
+   "file": "env/trees/broadleaf.glb",
+   "triangles": 3726,
+   "bytes": 855684,
+   "job_id_3d": "c6329b16-1906-4f30-b72a-83ed8fbdeb6c",
+   "job_id_image": "c6b8f46a-51fc-454f-9abd-d4cf4047dc23",
+   "model": "image_to_3d (Meshy via Higgsfield) + gpt_image_2_6",
+   "normalized": "Y-up, origin=bottom center (trunk base), height=1.0 unit",
+   "texture": "baseColor/MR/normal JPEG 1024",
+   "recommended_scale_m": [
+    8,
+    12
+   ],
+   "placement": {
+    "altitude": [
+     0.1,
+     0.5
+    ],
+    "slope_deg": [
+     0,
+     20
+    ],
+    "density_per_100m2": 0.6,
+    "notes": "저지대 초원/계곡, 3~5그루 클러스터"
+   },
+   "preview": "env/previews/broadleaf.png"
+  },
+  {
+   "file": "env/trees/blossom.glb",
+   "triangles": 3868,
+   "bytes": 821824,
+   "job_id_3d": "c5525371-889e-4fbc-adad-3c50303ea2fd",
+   "job_id_image": "d8505b05-a025-4fe7-81bf-0f342de5528d",
+   "model": "image_to_3d (Meshy via Higgsfield) + gpt_image_2_6",
+   "normalized": "Y-up, origin=bottom center (trunk base), height=1.0 unit",
+   "texture": "baseColor/MR/normal JPEG 1024",
+   "recommended_scale_m": [
+    9,
+    14
+   ],
+   "placement": {
+    "altitude": [
+     0.15,
+     0.55
+    ],
+    "slope_deg": [
+     0,
+     12
+    ],
+    "density_per_100m2": 0.03,
+    "notes": "랜드마크: 맵당 3~8그루, 평탄지/호숫가/섬 정상, 군락 금지"
+   },
+   "preview": "env/previews/blossom.png"
+  },
+  {
+   "file": "env/rocks/granite.glb",
+   "triangles": 1534,
+   "bytes": 236220,
+   "job_id_3d": "f38ac12e-0ab4-42b3-aa56-d3d10529ca2b",
+   "job_id_image": "e33ffcff-37a8-4a31-9e4c-02dc454ebb23",
+   "model": "image_to_3d (Meshy via Higgsfield) + gpt_image_2_6",
+   "normalized": "Y-up, origin=bottom center (trunk base), height=1.0 unit",
+   "texture": "baseColor/MR/normal JPEG 512",
+   "recommended_scale_m": [
+    1.5,
+    6
+   ],
+   "placement": {
+    "altitude": [
+     0.05,
+     0.75
+    ],
+    "slope_deg": [
+     0,
+     40
+    ],
+    "density_per_100m2": 0.4,
+    "notes": "초원·숲 가장자리 산포, 30% 땅에 묻기(y -0.15)"
+   },
+   "preview": "env/previews/granite.png"
+  },
+  {
+   "file": "env/rocks/cliff.glb",
+   "triangles": 2087,
+   "bytes": 248344,
+   "job_id_3d": "c12d5336-f8ce-4529-962a-9593931f84d2",
+   "job_id_image": "246205e3-c240-4f48-a542-3d6afe3865e0",
+   "model": "image_to_3d (Meshy via Higgsfield) + gpt_image_2_6",
+   "normalized": "Y-up, origin=bottom center (trunk base), height=1.0 unit",
+   "texture": "baseColor/MR/normal JPEG 512",
+   "recommended_scale_m": [
+    15,
+    40
+   ],
+   "placement": {
+    "altitude": [
+     0.3,
+     0.9
+    ],
+    "slope_deg": [
+     30,
+     70
+    ],
+    "density_per_100m2": 0.08,
+    "notes": "급경사·절벽면 커버용 kitbash, 비균일 스케일(xz 0.8~1.4) 허용"
+   },
+   "preview": "env/previews/cliff.png"
+  }
+ ],
+ "terrain_textures": [
+  {
+   "file": "env/textures/meadow.jpg",
+   "normal": "env/textures/meadow_n.jpg",
+   "size": 1024,
+   "bytes": 309456,
+   "job_id_image": "226b9fea-1c1e-4184-b259-6f08b1bc0616",
+   "model": "gpt_image_2_6",
+   "processing": "offset+feather seam blend, low-freq light flatten, normal from height (Sobel-like, OpenGL +Y)",
+   "placement": {
+    "altitude": [
+     0,
+     0.5
+    ],
+    "slope_deg": [
+     0,
+     25
+    ],
+    "tiling_m": 6
+   }
+  },
+  {
+   "file": "env/textures/cliff.jpg",
+   "normal": "env/textures/cliff_n.jpg",
+   "size": 1024,
+   "bytes": 189774,
+   "job_id_image": "3664b965-28be-47ba-af42-e69aba95f15e",
+   "model": "gpt_image_2_6",
+   "processing": "offset+feather seam blend, low-freq light flatten, normal from height (Sobel-like, OpenGL +Y)",
+   "placement": {
+    "altitude": [
+     0,
+     1
+    ],
+    "slope_deg": [
+     35,
+     90
+    ],
+    "tiling_m": 10,
+    "notes": "triplanar 권장"
+   }
+  },
+  {
+   "file": "env/textures/snow.jpg",
+   "normal": "env/textures/snow_n.jpg",
+   "size": 1024,
+   "bytes": 226846,
+   "job_id_image": "dc07a82d-14ad-450c-b8da-3184588a3214",
+   "model": "gpt_image_2_6",
+   "processing": "offset+feather seam blend, low-freq light flatten, normal from height (Sobel-like, OpenGL +Y)",
+   "placement": {
+    "altitude": [
+     0.75,
+     1
+    ],
+    "slope_deg": [
+     0,
+     40
+    ],
+    "tiling_m": 8
+   }
+  },
+  {
+   "file": "env/textures/path.jpg",
+   "normal": "env/textures/path_n.jpg",
+   "size": 1024,
+   "bytes": 260783,
+   "job_id_image": "1170bf8b-769e-49a5-87b0-f140a2559f5e",
+   "model": "gpt_image_2_6",
+   "processing": "offset+feather seam blend, low-freq light flatten, normal from height (Sobel-like, OpenGL +Y)",
+   "placement": {
+    "altitude": [
+     0,
+     0.7
+    ],
+    "slope_deg": [
+     0,
+     15
+    ],
+    "tiling_m": 4,
+    "notes": "스플랫/길 마스크"
+   }
+  }
+ ]
+}
