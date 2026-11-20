@@ -14,7 +14,8 @@ export const GATHER_GOAL = {branch: 3, stone: 3, shard: 1};
 export const LAND = {maxSlope: .35, maxAltitude: 45, sampleRadius: 4.6};
 
 // 착륙(또는 용으로 돌아갈) 자리 판정. 떠 있는 섬·아치 위는 지원하지 않음(지형 heightAt 기준만 신뢰)
-export function evaluateLanding(terrain, x, y, z, scale, {checkAltitude = true, zone = ZONE} = {}) {
+// props: 공터에 직접 배치한 소품(풍향탑·작업대·NPC) [{x,z,r}] — 지형 장애물 API에 없으므로 따로 검사 (Codex 리뷰로 발견)
+export function evaluateLanding(terrain, x, y, z, scale, {checkAltitude = true, zone = ZONE, props = []} = {}) {
   if (Math.hypot(x - zone.x, z - zone.z) > zone.r) return {ok: false, reason: '시제품에서는 풍향탑 공터 안에서만 착륙할 수 있습니다'};
   const r = LAND.sampleRadius * scale, W = terrain.waterLevel;
   let mn = Infinity, mx = -Infinity, wet = 0, n = 0;
@@ -28,6 +29,7 @@ export function evaluateLanding(terrain, x, y, z, scale, {checkAltitude = true, 
   if (slope > LAND.maxSlope) return {ok: false, reason: '경사가 너무 가파릅니다', slope};
   if (checkAltitude && y - center > LAND.maxAltitude * Math.max(1, scale * .6)) return {ok: false, reason: '더 낮게 내려가야 착륙할 수 있습니다', altitude: y - center};
   const groundY = Math.max(center, mx - r * .1);
+  for (const q of props) if (Math.hypot(x - q.x, z - q.z) < r + q.r) return {ok: false, reason: `${q.name || '구조물'}과 겹쳐 착륙할 수 없습니다`};
   if (terrain.obstacleAt) {
     const o = terrain.obstacleAt(x, groundY + 3 * scale, z, 3.2 * scale);
     if (o.hit) return {ok: false, reason: '바위·탑에 가로막혀 공간이 부족합니다'};
@@ -120,6 +122,7 @@ export function createGround(ctx) {
     return g;
   }
   const seraPos = placeOnGround(10, -4);
+  const props = [{name: '풍향탑', x: towerPos.x, z: towerPos.z, r: 2.5}, {name: '작업대', x: benchPos.x, z: benchPos.z, r: 1.8}, {name: '세라', x: seraPos.x, z: seraPos.z, r: 1.2}];
   const sera = person(0x3f6b6a, 0xe6bf9a, 0x6a3a22); sera.position.copy(seraPos); root.add(sera);
   const seraLamp = new T.Mesh(new T.SphereGeometry(.12, 8, 6), new T.MeshBasicMaterial({color: 0xffc24a})); seraLamp.position.set(.42, .85, .1); sera.add(seraLamp);
 
@@ -182,7 +185,7 @@ export function createGround(ctx) {
   let landCheck = {ok: false, reason: ''};
   function tryLand() {
     if (mode !== 'air' || anim) return false;
-    landCheck = evaluateLanding(terrain, player.position.x, player.position.y, player.position.z, ctx.scale());
+    landCheck = evaluateLanding(terrain, player.position.x, player.position.y, player.position.z, ctx.scale(), {props});
     if (!landCheck.ok) { ctx.banner('착륙 불가', landCheck.reason, 1.6); ctx.sfx?.('ui_click'); return false; }
     const from = player.position.clone(), to = new T.Vector3(player.position.x, landCheck.y + 2.2 * ctx.scale(), player.position.z);
     anim = {t: 0, dur: 1.2, from, to, kind: 'land'}; ctx.onLandStart?.(); return true;
@@ -218,7 +221,7 @@ export function createGround(ctx) {
   }
   function toDragon() {
     if (mode !== 'human' || anim) return false;
-    const c = evaluateLanding(terrain, hp.pos.x, hp.pos.y, hp.pos.z, ctx.scale(), {checkAltitude: false});
+    const c = evaluateLanding(terrain, hp.pos.x, hp.pos.y, hp.pos.z, ctx.scale(), {checkAltitude: false, props});
     if (!c.ok) { ctx.banner('용으로 돌아갈 수 없음', c.reason === '시제품에서는 풍향탑 공터 안에서만 착륙할 수 있습니다' ? '공터 안으로 돌아가세요' : c.reason + ' — 넓은 곳으로 이동하세요', 1.8); return false; }
     player.position.set(hp.pos.x, c.y + 2.2 * ctx.scale(), hp.pos.z);
     anim = {t: 0, dur: .55, kind: 'toDragon'}; ctx.burst(hp.pos.clone().add(v.set(0, 1, 0)), ctx.pathColor(0xffa33d, 0x9ff0ff), 90, 30, 1.2); ctx.sfx?.('evolve'); ctx.shake(.5); return true;
@@ -290,6 +293,7 @@ export function createGround(ctx) {
     hp.vel.y -= 20 * dt; hp.pos.y += hp.vel.y * dt;
     const gy = groundAt(hp.pos.x, hp.pos.z); if (hp.pos.y <= gy) { hp.pos.y = gy; hp.vel.y = 0; hp.onGround = true; }
     if (terrain.obstacleAt) { const o = terrain.obstacleAt(hp.pos.x, hp.pos.y + .9, hp.pos.z, .4); if (o.hit) { hp.pos.x += o.normal.x * o.depth; hp.pos.z += o.normal.z * o.depth; } }
+    for (const q of props) { const dx = hp.pos.x - q.x, dz = hp.pos.z - q.z, d = Math.hypot(dx, dz), min = q.r * .45 + .35; if (d < min) { const k = d > 1e-4 ? 1 / d : 0; hp.pos.x = q.x + (k ? dx * k : 1) * min; hp.pos.z = q.z + dz * k * min; } }
     // 낙하 안전장치
     if (!(hp.pos.y > -50) || !isFinite(hp.pos.x)) { const sp = placeOnGround(0, 0); hp.pos.copy(sp); }
     human.position.copy(hp.pos); human.rotation.y = hp.yaw;
@@ -326,7 +330,7 @@ export function createGround(ctx) {
     if (mode === 'human' && !anim) updateHuman(dt, keys, ts);
     if (mode === 'landed' && !anim) { const gy = hAt(player.position.x, player.position.z); player.position.y += (Math.max(gy, W) + 2.2 * ctx.scale() - player.position.y) * Math.min(1, dt * 4); }
     // 착륙 가능 여부 미리보기(공중, 공터 근처)
-    if (mode === 'air' && !anim) landCheck = Math.hypot(player.position.x - ZONE.x, player.position.z - ZONE.z) < ZONE.r + 60 ? evaluateLanding(terrain, player.position.x, player.position.y, player.position.z, ctx.scale()) : {ok: false, reason: 'far'};
+    if (mode === 'air' && !anim) landCheck = Math.hypot(player.position.x - ZONE.x, player.position.z - ZONE.z) < ZONE.r + 60 ? evaluateLanding(terrain, player.position.x, player.position.y, player.position.z, ctx.scale(), {props}) : {ok: false, reason: 'far'};
     prompt = nearest();
     refreshHud();
     if ((saveTimer -= raw) <= 0 && mode !== 'air' && !anim) { saveTimer = 5; save(); }
@@ -365,7 +369,7 @@ export function createGround(ctx) {
   function restore() {
     if (world.form === 'air' || !world.dragonPos) return;
     if (world.terrain && world.terrain !== 'seed7-v1') { world.form = 'air'; return; } // 지형이 바뀐 저장은 위치만 무시(진행은 유지)
-    const d = world.dragonPos, c = evaluateLanding(terrain, d.x, d.y, d.z, ctx.scale(), {checkAltitude: false});
+    const d = world.dragonPos, c = evaluateLanding(terrain, d.x, d.y, d.z, ctx.scale(), {checkAltitude: false, props});
     const base = c.ok ? new T.Vector3(d.x, c.y + 2.2 * ctx.scale(), d.z) : placeOnGround(0, 0).add(v.set(0, 2.2 * ctx.scale(), 0));
     player.position.copy(base); ctx.setYaw?.(world.yaw || 0);
     mode = 'landed';

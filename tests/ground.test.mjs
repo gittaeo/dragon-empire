@@ -47,3 +47,8 @@ test('recipes: gather goal covers workbench + kit exactly', () => {
   assert.ok(canAfford(bag, RECIPES.kit)); pay(bag, RECIPES.kit);
   assert.deepEqual(bag, {branch: 0, stone: 0, shard: 0, kit: 0});
 });
+test('landing: rejected when the dragon body overlaps a placed prop (wind tower)', () => {
+  const props = [{name: '풍향탑', x: ZONE.x + 10, z: ZONE.z, r: 2.5}];
+  assert.equal(evaluateLanding(flat(), ZONE.x, 40, ZONE.z, 1, {props}).ok, true);            // 해츨링 반경 4.6 → 떨어져 있음
+  assert.match(evaluateLanding(flat(), ZONE.x, 120, ZONE.z, 4.5, {props}).reason, /풍향탑/); // 엠페러 반경 20.7 → 겹침
+});

@@ -1,5 +1,13 @@
 # HANDOFF 로그 (최신이 위)
 
+## 2026-11-21 — [claude] Claude Code ↔ Codex 직접 질의 연결 + 풍향탑 겹침 착륙 수정
+**한 일**:
+- 사용자 승인으로 Codex CLI 0.171.0 단독 실행 파일(공식 GitHub 릴리스, SHA-256 확인)을 C:/Users/태오/.local/codex-cli/에 설치(codex.exe + codex-code-mode-host.exe + codex-command-runner.exe). 데스크톱 앱 ChatGPT 로그인 공유. 이 버전엔 mcp-server가 없어 codex exec로 연결.
+- scripts/ask-codex.sh: `bash scripts/ask-codex.sh read "질문"`(읽기 전용) / `write "작업"`(작업폴더 쓰기, Codex 담당 파일만). 경로는 Windows 형식(pwd -W)으로 넘겨야 Codex가 파일을 읽음. 경로 변경은 CODEX_BIN.
+- Codex 리뷰가 찾은 버그 수정: 공터 소품(풍향탑·작업대·세라)이 지형 장애물 API에 없어 엠페러가 풍향탑과 겹쳐 착륙 가능 → evaluateLanding에 props 옵션, 착륙·미리보기·용 복귀·복원 모두 검사, 인간형은 소품에서 밀려남(중심 정확히 겹침도 처리). 테스트 1개 추가.
+**테스트 결과**: Codex 왕복 질의 2회 성공(첫 질문에서 버그 지적 + 줄 번호, 수정 확인 답변). 단위 28/28, 지상 전체 루프 Playwright 재실행 통과.
+**알려진 문제**: Codex CLI는 사용자 PC 경로 고정(다른 PC는 CODEX_BIN 지정). Codex가 Claude에게 먼저 묻는 반대 방향은 아직 없음(Claude Code CLI 미설치).
+
 ## 2026-11-20 — [claude] 다 자란 용의 위엄: 새 머리 모델 적용 + 크기 대비·카메라·묵직한 날갯짓
 **배경**: 사용자 레퍼런스(용 등 뒤에서 날개가 화면을 가득 채우는 구도) — "해츨링과 크기 차이, 다 큰 용의 위엄이 없다".
 **한 일**: 웜·엠페러 v2(매끈한 머리+큰 뿔 2개) 적용(approved/dragon_wyrm·dragon_emperor 교체, 2.1/2.2MB). 카메라 거리 22/27/34/44 → 22/23/25/27(몸이 커질수록 화면 점유 증가: 해츨링 대비 엠페러 약 4배), 카메라 높이 3+2.1×scale·시선 높이 1+0.7×scale(조준선은 수평 유지), FOV 60+3×(scale−1). 날갯짓 속도 ×1/√scale(엠페러 ≈0.47배, dragon-anim.js rate). 전용 엠페러 모델이 있으면 후광·후광 불씨 끔(조준선 가림 해소).
