@@ -364,10 +364,10 @@ function updateStageLook(raw) {
   if (mdl && !mdl.userData.glowMats) { mdl.userData.glowMats = []; mdl.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) if (m.emissive) mdl.userData.glowMats.push(m); }); }
   for (const m of mdl?.userData.glowMats || []) { const base = m.userData.dragonOriginal?.emissiveIntensity ?? 1; const want = (m.userData.mapGlow ? .16 + .06 * (st - 1) : Math.max(base, path ? .55 : base) * k('glow')) * (1 + .15 * Math.sin(time * 3)); m.emissiveIntensity += (want - m.emissiveIntensity) * Math.min(1, raw * 2); }
   // 엠페러: 머리 뒤 금빛 후광(콘셉트 아트의 헤일로)
-  const on = st >= 4 ? 1 : 0; halo.material.opacity += (on * .9 - halo.material.opacity) * Math.min(1, raw * 2); haloInner.material.opacity = halo.material.opacity * .18;
+  const on = st >= 4 && !own ? 1 : 0; halo.material.opacity += (on * .9 - halo.material.opacity) * Math.min(1, raw * 2); haloInner.material.opacity = halo.material.opacity * .18;
   halo.visible = halo.material.opacity > .01; halo.rotation.z += raw * .6; halo.scale.setScalar(.75 + .05 * Math.sin(time * 2));
   halo.material.color.set(path === 'storm' ? 0x9ff0ff : 0xffc85a); haloInner.material.color.set(path === 'storm' ? 0x63dcff : 0xffa23a);
-  if (st >= 4 && Math.random() < .35) spark(tmp.copy(halo.position).applyMatrix4(player.matrixWorld), path === 'storm' ? 0xbff6ff : 0xffd27a, _pv.set((Math.random() - .5) * 6, 4 + Math.random() * 6, (Math.random() - .5) * 6), 2.5 * scaleNow, .8);
+  if (st >= 4 && !own && Math.random() < .35) spark(tmp.copy(halo.position).applyMatrix4(player.matrixWorld), path === 'storm' ? 0xbff6ff : 0xffd27a, _pv.set((Math.random() - .5) * 6, 4 + Math.random() * 6, (Math.random() - .5) * 6), 2.5 * scaleNow, .8);
 }
 
 // ---------- 루프 (임시 벡터 재사용) ----------
@@ -539,7 +539,7 @@ function updateEnemies(dt) {
 
 function updateCamera(dt, boosting) {
   const s = scaleNow; camDistNow += (STAGE.camDist[stage() - 1] - camDistNow) * (1 - Math.exp(-2 * dt));
-  const lift = 4 + 3 * s, dist = camDistNow;
+  const lift = 3 + 2.1 * s, dist = camDistNow; // 큰 용일수록 카메라를 낮고 가깝게 → 날개가 화면을 채움
   // 대관식 동안 카메라가 드래곤 주위를 돌았다가 돌아옴
   const spin = coronation >= 0 ? Math.PI * .9 * Math.sin(Math.PI * Math.min(1, coronationT / 4)) : 0, vy = yaw + spin;
   viewDir.set(-Math.sin(vy) * Math.cos(pitch), Math.sin(pitch), -Math.cos(vy) * Math.cos(pitch));
@@ -556,8 +556,8 @@ function updateCamera(dt, boosting) {
   camera.position.y = Math.max(camera.position.y, ground(camera.position.x, camera.position.z) + 3);
   camera.up.copy(viewUp);
   // 조준점이 큰 몸에 가리지 않도록 시선 높이를 단계에 비례
-  camera.lookAt(tmp.copy(player.position).addScaledVector(viewDir, 6 + 5 * s).addScaledVector(viewUp, 3 * s));
-  const fov = 60 + (boosting ? 8 : 0) + (gliding && pitch < -.3 ? 6 : 0);
+  camera.lookAt(tmp.copy(player.position).addScaledVector(viewDir, 10 + 7 * s).addScaledVector(viewUp, 1 + .7 * s));
+  const fov = 60 + 3 * (s - 1) + (boosting ? 8 : 0) + (gliding && pitch < -.3 ? 6 : 0);
   if (Math.abs(camera.fov - fov) > .05) { camera.fov += (fov - camera.fov) * (1 - Math.exp(-4 * dt)); camera.updateProjectionMatrix(); }
   if (animCam) {
     const o = {side: [1, .12, 0], front: [0, .12, -1], back: [0, .3, 1], top: [0, 1, .02], tq: [.8, .4, -.8], tqb: [.75, .45, .85]}[animCam] || [1, .12, 0];
@@ -592,7 +592,7 @@ function loop() {
   if (!(playing && !paused && !over)) { animIn.fwd = animIn.side = 0; animIn.up = animIn.down = animIn.boost = false; }
   const targetScale = stageScale(level); scaleNow += (targetScale - scaleNow) * (1 - Math.exp(-3 * raw)); player.scale.setScalar(scaleNow * gnd.dragonMul);
   syncStageModel(); updateStageLook(raw);
-  animIn.yaw = yaw; anim.update(raw, animIn); player.rotation.z = anim.bankAngle;
+  anim.rate = T.MathUtils.clamp(1 / Math.sqrt(scaleNow), .45, 1); animIn.yaw = yaw; anim.update(raw, animIn); player.rotation.z = anim.bankAngle;
   const mdl = player.userData.model;
   if (mdl && mdl.userData.rig) { anim.applyUniforms(mdl.userData.rig); anim.applyPose(mdl, mdl.userData.unit); }
   else player.userData.wings.forEach((w, i) => w.rotation.z = (i ? -1 : 1) * (.05 - anim.wingUp * .45));

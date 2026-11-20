@@ -86,10 +86,10 @@
       "animations": [],
       "scale": 1,
       "forward": "+Z",
-      "source": "Higgsfield gpt_image_2_6 → image_to_3d (Meshy 7) job 47b96edf-f735-4036-b4ec-bc0127ef8d55, PBR, 텍스처 1024 JPEG 압축본",
+      "source": "Higgsfield gpt_image_2_6 61e49281 → Meshy 7 job 7254b9e3-2391-4166-b7e7-51a98de118b3, PBR, 텍스처 1024",
       "triangles": 25900,
       "approvedAt": "2026-11-20",
-      "notes": "3단계 웜 · 날갯짓은 dragon-anim.js 셰이더 리그"
+      "notes": "3단계 웜 · 매끈한 머리+큰 뿔 2개(v2, 사용자 피드백)"
     },
     {
       "id": "dragon_emperor",
@@ -99,10 +99,10 @@
       "animations": [],
       "scale": 1,
       "forward": "+Z",
-      "source": "Higgsfield gpt_image_2_6 → image_to_3d (Meshy 7) job e4f6f3a8-0133-4092-876e-26c5ce96dee1, PBR, 텍스처 1024 JPEG 압축본",
+      "source": "Higgsfield gpt_image_2_6 585ec2c4 → Meshy 7 job a5296fd8-c00b-490b-8b94-32289c0663b0, PBR, 텍스처 1024",
       "triangles": 25900,
       "approvedAt": "2026-11-20",
-      "notes": "4단계 드래곤 엠페러 · 날갯짓은 dragon-anim.js 셰이더 리그"
+      "notes": "4단계 엠페러 · 매끈한 머리+금빛 큰 뿔 2개+금테(v2)"
     }
   ]
 }

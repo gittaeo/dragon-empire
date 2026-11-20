@@ -140,6 +140,7 @@ const MODES = {
 
 export class FlightAnimator {
   constructor() {
+    this.rate = 1; // 몸 크기에 따른 날갯짓 속도 배수(큰 용은 느리고 묵직하게)
     this.phase = 0; this.hz = 1.05; this.amp = 0.8; this.glide = 0; this.tuck = 0; this.sway = 0.5;
     this.pitch = { x: -0.3, v: 0 }; this.bank = { x: 0, v: 0 }; this.heading = { x: 0, v: 0 };
     this.recoil = { x: 0, v: 0 }; this.turn = 0; this.lastYaw = null; this.yawRate = 0; this.time = 0;
@@ -164,7 +165,7 @@ export class FlightAnimator {
     this.glide += (M[2] - this.glide) * exp1(mode === 'dive' ? 2.5 : 4, dt);
     this.tuck += (M[3] - this.tuck) * exp1(mode === 'boost' ? 4 : 3, dt);
     this.sway += (M[5] - this.sway) * exp1(2, dt);
-    this.phase = (this.phase + TAU * this.hz * dt) % (TAU * 1000);
+    this.phase = (this.phase + TAU * this.hz * this.rate * dt) % (TAU * 1000);
     this.turn += (turning - this.turn) * exp1(5, dt);
     const backPitch = inp.fwd < -0.05 ? 0.18 : 0;
     spring(this.pitch, M[4] + backPitch - this.recoil.x * 0.25, 1.2, 0.9, dt);
