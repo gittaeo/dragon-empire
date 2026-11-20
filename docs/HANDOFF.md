@@ -1,5 +1,18 @@
 # HANDOFF 로그 (최신이 위)
 
+## 2026-11-20 — [claude] 적·보스 Higgsfield 3D 생성(승인 대기) + 적 등급·보스 루세르나 + UI 전면 개편
+**한 일**:
+- Higgsfield Meshy7 image_to_3d 4건(각 38크레딧, 총 152): 기존 콘셉트(assets/pending/concepts)를 크롭해 업로드 → `assets/pending/models/enemies/` 에 lantern_moth(4,949tri)·lantern_rider(8,302)·chain_knight(8,224)·boss_lucerna(25,826), 텍스처 2048. URL·job은 `assets/remote-assets.json`. 미리보기 `assets/pending/models/enemies/previews/`, 검토 페이지 `enemy-review.html`. **사용자 승인 전이라 manifest 미등록 → 게임은 절차적 도형 사용.** (assets/pending은 git 미추적 유지)
+- `game.js` M3 일부: 적 등급 `ENEMY_KINDS`(나방 HP×0.6·XP×0.7·빠름 / 기수 표준 / 사슬 기사 HP×2·XP×2·느림), 단계별 혼합 `KIND_MIX`(사슬 기사는 3단계부터). 승인 후 manifest에 `enemy_lantern_moth`/`enemy_lantern_rider`/`enemy_chain_knight`/`boss_lucerna`(forward +Z) 추가만 하면 GLB로 교체(로드 실패 시 폴백). GLB 적은 날개 대신 롤·나방 날갯짓(scale) 연출.
+- 보스 루세르나: Lv30 대관식 45초 뒤(처치 후 120초마다) 등장, HP 20000×(1+0.1·위계), 110~170m 선회, 3.2초마다 등불 7발 부채꼴(최대HP 4%), 14초마다 나방 4 소환, 접촉 8%. 상단 보스 체력바(#bossbar), 조준 보정에 보스 반경 반영. 처치: 위계 XP +1500, HP 회복, 배너, 귀환 보상 +150(`crystalReward boss`). 테스트 `?boss=1`(3초 뒤 등장), `__game.spawnBoss()`.
+- UI 전면 개편("Ember Regalia", UI 에이전트가 GitHub 고별점 레포 조사: threejsassets/game-hud(MIT)·arwes(MIT) 레이아웃/프레임 참고, 코드 복사 없음). Cinzel/Cinzel Decorative/Noto Sans KR(OFL). 시작 화면 타이틀 락업·진화 4단계 표시·키캡 조작 안내, 금빛 프레임 HUD, 진화 선택 카드(화염/폭풍 아이콘), 결과 패널, CSS 조준선, 보스바, 터치 버튼 재스타일. 기존 id/클래스 모두 유지.
+**테스트 결과**:
+- 단위 8/8 통과. Playwright playthrough 화염(Lv30·위계1·240처치·635결정)·폭풍(253처치·654결정) 통과.
+- GPU 헤드리스 크롬: 보스 등장·보스바 표시, 실제 F 브레스 6초 → HP 20000→15650(≈725 dps, 처치 약 28초), 처치 시 배너·바 숨김·위계 XP 반영, 귀환 428결정 = 공식값(보스 +150 포함). 콘솔 에러 0.
+- UI 스크린샷(1440×810 시작·HUD+보스바·선택·결과, 390×844 모바일) 확인. 한글 단어 끊김(keep-all)·모바일 헤더 겹침 수정.
+**알려진 문제 / 미검증**: ①3D 모델은 승인 전이라 실제 게임 화면 적용 모습 미검증(크기·방향은 승인 후 확인). ②등급 혼합으로 페이싱이 바뀌었을 수 있음 — 입력 봇 재측정 안 함. ③보스 실제 손 조작 전투 미검증, 가만히 있으면 탄막에 빠르게 HP가 깎임. ④GLB 각 3.9~6.5MB(텍스처 2048) — 승인 시 1024 압축 권장. ⑤이전 항목(폭풍 색, 터치 노트북 .tc-look, 실기기) 그대로.
+**다음 할 일**: 사용자 모델 승인 → approved/ 이동·압축·manifest 등록·게임 내 크기/방향 확인 → M2 스킬.
+
 ## 2026-11-20 — [claude] M1: 밸런스 재조정 + 엠페러 이후 계속 비행
 **한 일**: 설계는 `docs/EMPEROR_MODE.md`(사용자 승인 방향, 디자이너 에이전트 초안).
 - `progression.js`: 처치 XP `round5(8+2L)×등급`, 최대HP `100+10(L−1)`, 황제 위계(1200+300·rank), 단계 표 `STAGE`(속도·카메라·적 HP·상한·스폰·피해%), `boltDamage/boltInterval`, `crystalReward`.

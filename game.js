@@ -61,14 +61,84 @@ const stage = () => stageForLevel(level);
 { const lv = Math.round(+params.get('lv') || 1); if (lv > 1) { level = Math.min(MAX_LEVEL, lv); if (level >= 10) path = params.get('path') === 'storm' ? 'storm' : 'flame'; hp = maxHpForLevel(level) * 1.1; scaleNow = stageScale(level); camDistNow = STAGE.camDist[stageForLevel(level) - 1]; } }
 
 // ---------- 적 (한 개의 템플릿을 clone → 지오메트리·재질 공유, 처치 시 dispose 불필요) ----------
-const enemies = [], enemyTemplate = dragon(0x493c54, 0x66516d); enemyTemplate.userData = {}; enemyTemplate.scale.setScalar(1.15);
-const enemyBolts = [], enemyBoltGeometry = new T.SphereGeometry(.8, 8, 6), enemyBoltMaterial = new T.MeshBasicMaterial({color: 0xc08bff});
-function makeEnemy(x, y, z) {
-  const e = enemyTemplate.clone(), wings = [];
+// M3 적 등급: 등불 나방(약·빠름) / 등불 기수(표준) / 사슬 기사(단단함, 3단계부터). 승인된 GLB가 manifest에 있으면 사용, 없으면 색을 바꾼 절차적 드래곤.
+const ENEMY_KINDS = {
+  moth: {hp: .6, xp: .7, speed: 1.25, id: 'enemy_lantern_moth', len: 5.5, fallback: [0x8a6233, 0xe8b25e, .85]},
+  rider: {hp: 1, xp: 1, speed: 1, id: 'enemy_lantern_rider', len: 7, fallback: [0x493c54, 0x66516d, 1.15]},
+  knight: {hp: 2, xp: 2, speed: .8, id: 'enemy_chain_knight', len: 6.5, fallback: [0x3d3a40, 0x9b3328, 1.45]},
+};
+const KIND_MIX = [[.7, .3, 0], [.4, .6, 0], [.3, .5, .2], [.3, .4, .3]];
+const enemyTemplates = {};
+for (const [k, d] of Object.entries(ENEMY_KINDS)) { const t = dragon(d.fallback[0], d.fallback[1]); t.userData = {}; t.scale.setScalar(d.fallback[2]); enemyTemplates[k] = t; }
+const enemies = [];
+const enemyBolts = [], enemyBoltGeometry = new T.SphereGeometry(.8, 8, 6), enemyBoltMaterial = new T.MeshBasicMaterial({color: 0xc08bff}), lanternBoltMaterial = new T.MeshBasicMaterial({color: 0xffb547});
+function pickKind() { const m = KIND_MIX[stage() - 1], r = Math.random(); return r < m[0] ? 'moth' : r < m[0] + m[1] ? 'rider' : 'knight'; }
+function makeEnemy(x, y, z, kind = pickKind()) {
+  const K = ENEMY_KINDS[kind], e = enemyTemplates[kind].clone(), wings = [];
   e.traverse(o => { if (o.name === 'wing') wings.push(o); });
   e.position.set(x, y, z);
-  e.userData = {wings, hp: STAGE.enemyHp[stage() - 1], phase: Math.random() * 6.28, shootCd: 1.5 + Math.random() * 2.5, dash: 0, dashDir: new T.Vector3(), orbit: Math.random() < .5 ? 1 : -1};
+  e.userData = {kind, wings, hp: STAGE.enemyHp[stage() - 1] * K.hp, xp: K.xp, speed: K.speed, glb: !!e.userData.glb, phase: Math.random() * 6.28, shootCd: 1.5 + Math.random() * 2.5, dash: 0, dashDir: new T.Vector3(), orbit: Math.random() < .5 ? 1 : -1};
   scene.add(e); enemies.push(e); return e;
+}
+
+// ---------- 보스: 등불의 여왕 루세르나 (엠페러 이후) ----------
+let boss = null, bossCountdown = params.get('boss') ? 3 : 45, bossKills = 0, bossModel = null;
+const bossBolts = [];
+function bossFallback() { const g = dragon(0x3b2430, 0xffa94a); g.scale.setScalar(7); return g; }
+function spawnBoss() {
+  const o = bossModel ? bossModel.clone() : bossFallback();
+  o.position.copy(player.position).add(tmp.set(-Math.sin(yaw) * 260, 40, -Math.cos(yaw) * 260));
+  o.position.y = Math.max(o.position.y, ground(o.position.x, o.position.z) + 70);
+  const maxHpB = Math.round(20000 * (1 + .1 * rank));
+  o.userData = {hp: maxHpB, maxHp: maxHpB, radius: 24, phase: 0, volleyCd: 4, summonCd: 10, orbit: 1, wings: []};
+  o.traverse(c => { if (c.name === 'wing') o.userData.wings.push(c); });
+  scene.add(o); boss = o;
+  banner('등불의 여왕 루세르나', '수천 개의 등불이 하늘을 덮습니다', 3);
+  $('#bossbar').hidden = false; refreshBoss();
+}
+function refreshBoss() { if (boss) $('#bossbar i span').style.width = Math.max(0, boss.userData.hp / boss.userData.maxHp * 100) + '%'; }
+function damageBoss(amount, at) {
+  boss.userData.hp -= amount; refreshBoss(); burst(at, 0xffc56b, 10, 20, Math.min(fxScale(), 1.5));
+  if (boss.userData.hp > 0) return;
+  const p = boss.position.clone(); scene.remove(boss); boss = null; bossKills++; bossCountdown = 120; $('#bossbar').hidden = true;
+  for (let i = 0; i < 4; i++) burst(tmp.copy(p).add(tmp2.set((Math.random() - .5) * 40, (Math.random() - .5) * 20, (Math.random() - .5) * 40)), i % 2 ? 0xffdc88 : 0xff8a2a, 120, 55, 3);
+  kills++; const before = rank; ({rank, rankXp} = addRankExperience({rank, rankXp}, 1500));
+  hp = maxHp; banner('루세르나 격파!', `위계 경험치 +1500 · 귀환 보상 +150${rank > before ? ' · 위계 ' + ROMAN(rank) : ''}`, 3.5); refresh();
+}
+function updateBoss(dt) {
+  if (!boss) {
+    if (level >= MAX_LEVEL && coronation < 0 && (bossCountdown -= dt) <= 0) spawnBoss();
+    return;
+  }
+  const u = boss.userData; u.phase += dt;
+  tmp.subVectors(player.position, boss.position); const d = tmp.length(); tmp.divideScalar(d || 1);
+  // 플레이어와 110~170m를 유지하며 천천히 선회, 플레이어보다 30m 위
+  boss.position.addScaledVector(tmp, (d - 140) * .35 * dt).add(tmp2.set(-tmp.z, 0, tmp.x).multiplyScalar(u.orbit * 14 * dt));
+  const wantY = Math.max(player.position.y + 30, ground(boss.position.x, boss.position.z) + 60);
+  boss.position.y += (wantY - boss.position.y) * (1 - Math.exp(-.8 * dt)) + Math.sin(u.phase * 1.3) * 3 * dt;
+  boss.lookAt(player.position); boss.rotateY(Math.PI); boss.rotation.z += Math.sin(u.phase * .7) * .08;
+  if (u.wings.length) { u.wings[0].rotation.z = Math.sin(u.phase * 2) * .25; u.wings[1].rotation.z = -u.wings[0].rotation.z; }
+  // 등불 부채꼴 탄막(7발) 3.2초마다, 나방 4마리 소환 14초마다
+  if ((u.volleyCd -= dt) <= 0 && coronation < 0) {
+    u.volleyCd = 3.2; tmp2.subVectors(player.position, boss.position).normalize();
+    for (let i = -3; i <= 3; i++) {
+      const o = mesh(enemyBoltGeometry, lanternBoltMaterial); o.position.copy(boss.position); o.scale.setScalar(2.2);
+      const v = tmp2.clone().applyAxisAngle(T.Object3D.DEFAULT_UP, i * .12).multiplyScalar(55);
+      bossBolts.push({o, v, life: 5});
+    }
+  }
+  if ((u.summonCd -= dt) <= 0) {
+    u.summonCd = 14;
+    for (let i = 0; i < 4; i++) makeEnemy(boss.position.x + (Math.random() - .5) * 60, boss.position.y - 10, boss.position.z + (Math.random() - .5) * 60, 'moth');
+  }
+  if (d < u.radius + 3.2 * scaleNow && hitTimer <= 0) { hurt(maxHp * .08); hitTimer = 1; }
+  const pr2 = (2.5 * scaleNow + 4) ** 2;
+  for (let i = bossBolts.length - 1; i >= 0; i--) {
+    const b = bossBolts[i]; b.o.position.addScaledVector(b.v, dt); b.life -= dt;
+    if (Math.random() < .3) spark(b.o.position, 0xffa13a, _pv.set(0, 0, 0), 5, .35);
+    if (b.o.position.distanceToSquared(player.position) < pr2) { hurt(maxHp * .04); burst(b.o.position, 0xffb54a, 16, 18); b.life = 0; }
+    if (b.life <= 0) { scene.remove(b.o); bossBolts.splice(i, 1); }
+  }
 }
 // 4~6마리 무리를 반경 25m로 묶어 진행 방향 ±60°(70%) 또는 임의 방향, 150~300m에 배치
 function groupCenter(out) {
@@ -176,8 +246,8 @@ document.querySelectorAll('[data-path]').forEach(b => b.onclick = () => {
 });
 function finish(kind) {
   if (over) return; over = true; playing = false; touch.setVisible(false); document.exitPointerLock?.();
-  for (const b of bolts) scene.remove(b.o); bolts.length = 0; for (const b of enemyBolts) scene.remove(b.o); enemyBolts.length = 0;
-  const reward = crystalReward({level, kills, rank, lateKills}); coins += reward; store.set('dragonEmpireCoins', coins); $('#coins').textContent = coins;
+  for (const b of bolts) scene.remove(b.o); bolts.length = 0; for (const b of enemyBolts) scene.remove(b.o); enemyBolts.length = 0; for (const b of bossBolts) scene.remove(b.o); bossBolts.length = 0; $('#bossbar').hidden = true;
+  const reward = crystalReward({level, kills, rank, lateKills, boss: bossKills > 0}); coins += reward; store.set('dragonEmpireCoins', coins); $('#coins').textContent = coins;
   const emperor = level >= MAX_LEVEL, mm = Math.floor(runTime / 60), ss = String(Math.floor(runTime % 60)).padStart(2, '0');
   $('#result-label').textContent = emperor ? 'DRAGON EMPEROR' : 'FLIGHT ENDED';
   $('#result-title').textContent = kind === 'return' ? '드래곤 엠페러의 귀환' : kind === 'fall' ? '드래곤 엠페러, 잠시 휴식' : '다시 하늘을 향해';
@@ -195,12 +265,12 @@ function killEnemy(e) {
   hp = Math.min(maxHp, hp + maxHp * .02);
   if (level >= MAX_LEVEL) {
     if (rank >= 10) lateKills++;
-    const before = rank; ({rank, rankXp} = addRankExperience({rank, rankXp}, killExperience(MAX_LEVEL)));
+    const before = rank; ({rank, rankXp} = addRankExperience({rank, rankXp}, Math.round(killExperience(MAX_LEVEL) * (e.userData.xp || 1))));
     if (rank > before) { hp = Math.min(maxHp, hp + maxHp * .2); burst(player.position, 0xffdc88, 90, 40, fxScale()); banner(`황제 위계 ${ROMAN(rank)}`, `피해 +${Math.min(rank, 20) * 2}%`); }
     refresh(); return;
   }
   const beforeLevel = level, beforeStage = stage();
-  ({level, xp} = addExperience({level, xp}, killExperience(level)));
+  ({level, xp} = addExperience({level, xp}, Math.round(killExperience(level) * (e.userData.xp || 1))));
   if (level > beforeLevel) { refresh(); hp = Math.min(maxHp, hp + maxHp * .15); }
   if (stage() > beforeStage) {
     refresh(); hp = maxHp; invuln = 2; burst(player.position, 0xffdc88, 100, 35, fxScale());
@@ -259,6 +329,7 @@ function fireBreath(dt, firing) {
   const s = scaleNow, k = fxScale(), camDir = camera.getWorldDirection(tmp), lockR2 = (7 * (.6 + .4 * s)) ** 2;
   let far = 600;
   for (const e of enemies) { tmp2.subVectors(e.position, camera.position); const t = tmp2.dot(camDir); if (t > camDistNow * .8 && t < far && tmp2.lengthSq() - t * t < lockR2) far = t; }
+  if (boss) { tmp2.subVectors(boss.position, camera.position); const t = tmp2.dot(camDir), rr = Math.sqrt(lockR2) + boss.userData.radius; if (t > camDistNow * .8 && t < far + 200 && tmp2.lengthSq() - t * t < rr * rr) far = Math.min(far, Math.max(camDistNow, t - boss.userData.radius * .5)); }
   aimPoint.copy(camera.position).addScaledVector(camDir, far);
   const aim = new T.Vector3().subVectors(aimPoint, player.position).normalize();
   const b = mesh(boltGeometry, path === 'storm' ? boltMaterials.storm : boltMaterials.fire);
@@ -276,6 +347,7 @@ function updateBolts(dt) {
     if (Math.random() < .7) { _pv.copy(b.v).multiplyScalar(-.08).add(tmp2.set((Math.random() - .5) * 7, (Math.random() - .5) * 7, (Math.random() - .5) * 7)); spark(b.o.position, path === 'storm' ? 0x77dfff : 0xff8a2a, _pv, (2 + Math.random() * 3) * fxScale(), .3 + Math.random() * .25); }
     let hit = null; const r2 = b.r * b.r;
     for (const e of enemies) if (segDistSq(e.position, b.prev, b.o.position) < r2) { hit = e; break; }
+    if (!hit && boss) { const rr = b.r + boss.userData.radius; if (segDistSq(boss.position, b.prev, b.o.position) < rr * rr) { damageBoss(b.dmg, b.o.position); b.life = 0; } }
     if (hit) { hit.userData.hp -= b.dmg; burst(b.o.position, path === 'storm' ? 0x7de6ff : 0xffa54c, 14, 22, Math.min(fxScale(), 1.5)); if (hit.userData.hp <= 0) killEnemy(hit); b.life = 0; }
     if (b.o.position.y < ground(b.o.position.x, b.o.position.z)) b.life = 0;
     if (b.life <= 0) { scene.remove(b.o); bolts.splice(i, 1); }
@@ -294,14 +366,15 @@ function updateEnemies(dt) {
     const u = e.userData; tmp.subVectors(player.position, e.position); const d = tmp.length(); tmp.divideScalar(d || 1);
     if (d > 450) { groupCenter(_c); e.position.set(_c.x + (Math.random() - .5) * 50, _c.y, _c.z + (Math.random() - .5) * 50); continue; }
     if (u.dash > 0) { u.dash -= dt; e.position.addScaledVector(u.dashDir, 60 * dt); }
-    else if (d > 60) e.position.addScaledVector(tmp, 16 * dt);
+    else if (d > 60) e.position.addScaledVector(tmp, 16 * u.speed * dt);
     else { // 30~60m에서 선회
-      tmp2.set(-tmp.z, 0, tmp.x).multiplyScalar(u.orbit * 10 * dt); e.position.add(tmp2).addScaledVector(tmp, (d - 45) * .5 * dt);
+      tmp2.set(-tmp.z, 0, tmp.x).multiplyScalar(u.orbit * 10 * u.speed * dt); e.position.add(tmp2).addScaledVector(tmp, (d - 45) * .5 * dt);
     }
     if (dashTimer <= 0 && u.dash <= 0 && d < 150) { u.dash = 1.5; u.dashDir.copy(tmp); dashTimer = 6; }
     e.position.y = Math.max(e.position.y + Math.sin(time * 2 + u.phase) * dt * 2, ground(e.position.x, e.position.z) + 6);
     e.lookAt(player.position); e.rotateY(Math.PI);
-    u.wings[0].rotation.z = Math.sin(time * (u.dash > 0 ? 9 : 4) + u.phase) * .22; u.wings[1].rotation.z = -u.wings[0].rotation.z;
+    if (u.wings.length) { u.wings[0].rotation.z = Math.sin(time * (u.dash > 0 ? 9 : 4) + u.phase) * .22; u.wings[1].rotation.z = -u.wings[0].rotation.z; }
+    else { const f = Math.sin(time * (u.kind === 'moth' ? 14 : 5) + u.phase); e.rotation.z += f * (u.kind === 'moth' ? .05 : .12); if (u.kind === 'moth') e.scale.x = e.scale.z * (1 + f * .12); }
     // 사격: 토큰이 있을 때 140m 안에서 플레이어 예상 위치로 보랏빛 탄
     u.shootCd -= dt;
     if (u.shootCd <= 0 && d < 140 && shotTokens >= 1 && enemyBolts.length < 12 && u.dash <= 0 && coronation < 0) {
@@ -365,7 +438,7 @@ function loop() {
   if (playing && !paused && !over) {
     runTime += dt; invuln = Math.max(0, invuln - dt); hitTimer -= dt;
     const f = updateFlight(dt); boosting = f.boosting;
-    fireBreath(dt, f.firing); updateEnemies(dt); if (!over) updateBolts(dt);
+    fireBreath(dt, f.firing); updateEnemies(dt); if (!over) updateBoss(dt); if (!over) updateBolts(dt);
   }
   if (bannerTimer > 0 && (bannerTimer -= raw) <= 0) $('#banner').classList.remove('on');
   updateParticles(raw);
@@ -386,7 +459,16 @@ refresh(); loop();
 loadManifest().then(() => loadModel('dragon_hatchling', {length: 9, rig: true})).then(m => {
   if (!m) return; player.children.forEach(c => c.visible = false); player.add(m); player.userData.model = m; setDragonPathVisual(m, path);
 }).catch(e => console.warn('[assets]', e));
+// 승인된 적·보스 GLB (manifest에 없으면 절차적 도형 유지)
+loadManifest().then(async () => {
+  for (const [k, d] of Object.entries(ENEMY_KINDS)) {
+    const m = await loadModel(d.id, {length: d.len}); if (!m) continue;
+    m.userData.glb = true; enemyTemplates[k] = m;
+    for (const e of [...enemies]) if (e.userData.kind === k) { const q = e.position.clone(); removeEnemy(e); makeEnemy(q.x, q.y, q.z, k); }
+  }
+  bossModel = await loadModel('boss_lucerna', {length: 70});
+}).catch(e => console.warn('[assets] enemies', e));
 if (touch.isTouch) document.querySelector('.help')?.remove();
 // 디버그·테스트 훅 (읽기 전용 상태)
 window.__game = {camera, get hud() { return {level, xp, hp, maxHp, kills, path, paused, over, playing, yaw, pitch, coins, rank, rankXp, coronation, gliding, flySpeed, runTime, stage: stage(), invuln}; },
-  get player() { return player; }, anim, get enemies() { return enemies; }, get enemyBolts() { return enemyBolts; }, terrain, tod, touch, start};
+  get player() { return player; }, anim, get enemies() { return enemies; }, get enemyBolts() { return enemyBolts; }, get boss() { return boss; }, spawnBoss, terrain, tod, touch, start};

@@ -1,21 +1,143 @@
 {
   "_note": "Higgsfield 생성 에셋 원본 URL 목록. 'node scripts/fetch-assets.mjs' 로 assets/pending/ 에 내려받는다. 사용자 승인 후 approved/ 로 옮기고 manifest.json 에 등록.",
   "assets": [
-    {"id":"dragon_hatchling_glb","path":"pending/models/dragon_hatchling_raw.glb","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_174311_564c7d41-a30a-4506-9ec2-8744df3262aa.glb","job":"564c7d41","note":"원본 14.2MB, 1k 압축본은 bundle zip 안 (2.07MB)"},
-    {"id":"dragon_hatchling_bundle","path":"pending/models/dragon_hatchling_bundle.zip","url":"https://d2ol7oe51mr4n9.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/2177d581-bc90-4682-90c4-0d92d6f1a1b1.zip","note":"1k GLB + 미리보기 4장 + 소스 이미지"},
-    {"id":"skybox_day","path":"pending/sky/skybox_day.png","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181659_48012d32-64fc-4118-adba-71efaee735ff.png","job":"48012d32","note":"equirect 2:1"},
-    {"id":"skybox_sunset","path":"pending/sky/skybox_sunset.png","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181629_3dfb560a-4617-4b9c-a757-4ee20889f71c.png","job":"3dfb560a","note":"equirect 2:1"},
-    {"id":"tex_meadow","path":"pending/terrain/meadow.png","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181659_2afe1e8c-b657-4e1e-aab7-5e0567553125.png","job":"2afe1e8c","note":"tileable"},
-    {"id":"tex_cliff","path":"pending/terrain/cliff.png","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181659_3cf0ee81-a417-416e-a57d-f132021d7e48.png","job":"3cf0ee81","note":"tileable"},
-    {"id":"tex_snowrock","path":"pending/terrain/snowrock.png","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181629_ba254cc6-2a25-427b-a8df-d6bcfd30716a.png","job":"ba254cc6","note":"tileable"},
-    {"id":"sprite_clouds","path":"pending/vfx/clouds_2x2.png","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181630_0034c32e-6c68-4e91-bed8-b5bab0609df9.png","job":"0034c32e","note":"검은 배경 → additive 또는 luminance 알파"},
-    {"id":"vfx_fire_flipbook","path":"pending/vfx/fire_4x4.png","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181629_77449055-0daa-4537-a6b8-1126085aeb1d.png","job":"77449055","note":"16프레임 flipbook, additive"},
-    {"id":"vfx_basic","path":"pending/vfx/glow_spark_ring_smoke_2x2.png","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181630_66bab29d-ad44-4718-ad11-ac80b97fa3d3.png","job":"66bab29d","note":"글로우/스파크/충격파 링/연기"},
-    {"id":"vfx_lightning","path":"pending/vfx/lightning_2x2.png","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181631_c32aaa20-1225-48ff-a689-02c992d02d2f.png","job":"c32aaa20","note":"폭풍 혈통"},
-    {"id":"vfx_fire_skills","path":"pending/vfx/fire_skills_2x2.png","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181700_f6e4a527-2a6b-4e4d-b2ea-d51089060ac8.png","job":"f6e4a527","note":"메테오/토네이도/방패/선폴"},
-    {"id":"icons_skills","path":"pending/ui/skill_icons_4x2.png","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_173356_e7a5e918-53d4-48d0-9651-002ea2ece1b2.png","job":"e7a5e918","note":"SKILLS.md 아이콘 1~8"},
-    {"id":"concept_boss_lucerna","path":"pending/concepts/boss_lucerna.png","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181631_38f6b9a4-694a-452a-814a-3be8786489d1.png","job":"38f6b9a4","note":"보스 콘셉트(3D화 전)"},
-    {"id":"concept_minions","path":"pending/concepts/lantern_minions.png","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181630_510479b7-16d5-4d6e-926a-3da703265396.png","job":"510479b7","note":"잡몹 3종 콘셉트"},
-    {"id":"concept_evolution_lineup","path":"pending/concepts/evolution_lineup.png","url":"https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_173354_faca65e2-a8a1-4392-884d-d8a02495f7f9.png","job":"faca65e2"}
+    {
+      "id": "dragon_hatchling_glb",
+      "path": "pending/models/dragon_hatchling_raw.glb",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_174311_564c7d41-a30a-4506-9ec2-8744df3262aa.glb",
+      "job": "564c7d41",
+      "note": "원본 14.2MB, 1k 압축본은 bundle zip 안 (2.07MB)"
+    },
+    {
+      "id": "dragon_hatchling_bundle",
+      "path": "pending/models/dragon_hatchling_bundle.zip",
+      "url": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/2177d581-bc90-4682-90c4-0d92d6f1a1b1.zip",
+      "note": "1k GLB + 미리보기 4장 + 소스 이미지"
+    },
+    {
+      "id": "skybox_day",
+      "path": "pending/sky/skybox_day.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181659_48012d32-64fc-4118-adba-71efaee735ff.png",
+      "job": "48012d32",
+      "note": "equirect 2:1"
+    },
+    {
+      "id": "skybox_sunset",
+      "path": "pending/sky/skybox_sunset.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181629_3dfb560a-4617-4b9c-a757-4ee20889f71c.png",
+      "job": "3dfb560a",
+      "note": "equirect 2:1"
+    },
+    {
+      "id": "tex_meadow",
+      "path": "pending/terrain/meadow.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181659_2afe1e8c-b657-4e1e-aab7-5e0567553125.png",
+      "job": "2afe1e8c",
+      "note": "tileable"
+    },
+    {
+      "id": "tex_cliff",
+      "path": "pending/terrain/cliff.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181659_3cf0ee81-a417-416e-a57d-f132021d7e48.png",
+      "job": "3cf0ee81",
+      "note": "tileable"
+    },
+    {
+      "id": "tex_snowrock",
+      "path": "pending/terrain/snowrock.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181629_ba254cc6-2a25-427b-a8df-d6bcfd30716a.png",
+      "job": "ba254cc6",
+      "note": "tileable"
+    },
+    {
+      "id": "sprite_clouds",
+      "path": "pending/vfx/clouds_2x2.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181630_0034c32e-6c68-4e91-bed8-b5bab0609df9.png",
+      "job": "0034c32e",
+      "note": "검은 배경 → additive 또는 luminance 알파"
+    },
+    {
+      "id": "vfx_fire_flipbook",
+      "path": "pending/vfx/fire_4x4.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181629_77449055-0daa-4537-a6b8-1126085aeb1d.png",
+      "job": "77449055",
+      "note": "16프레임 flipbook, additive"
+    },
+    {
+      "id": "vfx_basic",
+      "path": "pending/vfx/glow_spark_ring_smoke_2x2.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181630_66bab29d-ad44-4718-ad11-ac80b97fa3d3.png",
+      "job": "66bab29d",
+      "note": "글로우/스파크/충격파 링/연기"
+    },
+    {
+      "id": "vfx_lightning",
+      "path": "pending/vfx/lightning_2x2.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181631_c32aaa20-1225-48ff-a689-02c992d02d2f.png",
+      "job": "c32aaa20",
+      "note": "폭풍 혈통"
+    },
+    {
+      "id": "vfx_fire_skills",
+      "path": "pending/vfx/fire_skills_2x2.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181700_f6e4a527-2a6b-4e4d-b2ea-d51089060ac8.png",
+      "job": "f6e4a527",
+      "note": "메테오/토네이도/방패/선폴"
+    },
+    {
+      "id": "icons_skills",
+      "path": "pending/ui/skill_icons_4x2.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_173356_e7a5e918-53d4-48d0-9651-002ea2ece1b2.png",
+      "job": "e7a5e918",
+      "note": "SKILLS.md 아이콘 1~8"
+    },
+    {
+      "id": "concept_boss_lucerna",
+      "path": "pending/concepts/boss_lucerna.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181631_38f6b9a4-694a-452a-814a-3be8786489d1.png",
+      "job": "38f6b9a4",
+      "note": "보스 콘셉트(3D화 전)"
+    },
+    {
+      "id": "concept_minions",
+      "path": "pending/concepts/lantern_minions.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_181630_510479b7-16d5-4d6e-926a-3da703265396.png",
+      "job": "510479b7",
+      "note": "잡몹 3종 콘셉트"
+    },
+    {
+      "id": "concept_evolution_lineup",
+      "path": "pending/concepts/evolution_lineup.png",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261119_173354_faca65e2-a8a1-4392-884d-d8a02495f7f9.png",
+      "job": "faca65e2"
+    },
+    {
+      "id": "enemy_lantern_moth_glb",
+      "path": "pending/models/enemies/lantern_moth.glb",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_113842_904eace7-b2e6-4787-a3dd-df193feb9b8c.glb",
+      "job": "904eace7",
+      "note": "Meshy7 image_to_3d 5k tri, lantern_minions 크롭"
+    },
+    {
+      "id": "enemy_lantern_rider_glb",
+      "path": "pending/models/enemies/lantern_rider.glb",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_113845_e9064cba-14fe-4e5b-ad0d-ce7fc7021324.glb",
+      "job": "e9064cba",
+      "note": "Meshy7 8k tri"
+    },
+    {
+      "id": "enemy_chain_knight_glb",
+      "path": "pending/models/enemies/chain_knight.glb",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_113851_53b6dade-1b21-476e-a105-737da7e01091.glb",
+      "job": "53b6dade",
+      "note": "Meshy7 8k tri"
+    },
+    {
+      "id": "boss_lucerna_glb",
+      "path": "pending/models/enemies/boss_lucerna.glb",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3JaPZqTOTki2EO4zteaZiI4qGMy/hf_20261120_113853_29d5a0bf-c17f-457c-a200-cd85cd7a3030.glb",
+      "job": "29d5a0bf",
+      "note": "Meshy7 26k tri, boss_lucerna 정면 크롭"
+    }
   ]
 }

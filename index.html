@@ -1,2 +1,92 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Dragon Empire · 첫 비행</title><link rel="stylesheet" href="style.css"></head><body><canvas id="world"></canvas><div class="vignette"></div><header><div><small>DRAGON EMPIRE / PROTOTYPE 01</small><h1>첫 비행</h1></div><div class="currency">✦ <span id="coins">0</span> 용의 결정</div></header><main id="hud" hidden><div class="status"><span id="stage">새끼 드래곤</span><b id="level">LV. 1</b><div class="bar"><i id="hp"></i></div><small>생명력</small><div class="bar xp"><i id="xp"></i></div><small id="xptext">성장 경험치</small></div><div class="mission"><small>현재 목표</small><strong id="objective">Lv.10 진화의 갈림길까지 성장하세요</strong><span id="kills">처치 0</span></div><button id="return" hidden>귀환 · 보상 받기</button><div id="banner"><b></b><small></small></div><div class="crosshair">⌖</div><div class="help">W A S D 이동 · 마우스 오른쪽 드래그 시점 · SPACE 상승 · C 하강 · SHIFT 가속 · 클릭 / F 브레스</div></main><section class="overlay" id="start"><div class="panel"><p class="eyebrow">A NEW LEGEND TAKES FLIGHT</p><h2>하늘의 작은 불꽃이<br><em>제국의 황제</em>가 되기까지.</h2><p>작은 용과 함께 하늘을 날며 그림자 와이번을 물리치세요. 성장의 갈림길에서 당신만의 진화를 선택하고, 드래곤 엠페러가 된 뒤에도 황제의 하늘을 누비며 위계를 올리세요.</p><button id="begin">비행 시작 <span>↗</span></button><button id="pause-return" class="ghost" hidden>귀환 · 보상 받기</button><div class="instructions">WASD 이동 · 마우스 오른쪽 드래그 시점 · SPACE / C 고도 조절<br>SHIFT 가속 · 마우스 클릭 또는 F 공격 · ESC 일시정지</div><small>초기 3D 프로토타입 · PC 키보드와 마우스 권장</small></div></section><section class="overlay" id="choice" hidden><div class="panel choice"><p class="eyebrow">EVOLUTION AWAITS</p><h2>진화의 갈림길</h2><p>당신의 드래곤은 어떤 힘을 깨울까요?</p><div class="options"><button data-path="flame"><b>🔥 화염의 군주</b><small>브레스 피해량 증가<br>붉은 불꽃과 거대한 뿔</small></button><button data-path="storm"><b>⚡ 폭풍의 지배자</b><small>비행 속도와 생명력 증가<br>푸른 빛과 넓어진 날개</small></button></div></div></section><section class="overlay" id="result" hidden><div class="panel"><p class="eyebrow" id="result-label"></p><h2 id="result-title"></h2><p id="result-desc"></p><button id="restart">다시 비행하기 ↗</button></div></section><script type="module" src="game.js"></script></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Dragon Empire · 첫 비행</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="world"></canvas>
+<div class="vignette"></div>
 
+<header>
+  <div class="brand">
+    <svg class="sigil" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3l5 9 10-3-5 10 7 6-10 1-2 11-5-8-5 8-2-11-10-1 7-6-5-10 10 3z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="20" cy="21" r="4" fill="currentColor"/></svg>
+    <div><small>DRAGON EMPIRE</small><h1>첫 비행</h1></div>
+  </div>
+  <div class="currency"><i class="gem"></i><span id="coins">0</span><small>용의 결정</small></div>
+</header>
+
+<main id="hud" hidden>
+  <div class="status frame">
+    <div class="status-top"><span id="stage">불씨 해츨링</span><b id="level">LV. 1</b></div>
+    <div class="meter"><label>HP</label><div class="bar hp"><i id="hp"></i></div></div>
+    <div class="meter"><label>XP</label><div class="bar xp"><i id="xp"></i></div></div>
+    <small id="xptext">성장 경험치</small>
+  </div>
+  <div class="mission frame">
+    <small>현재 목표</small>
+    <strong id="objective">Lv.10 진화의 갈림길까지 성장하세요</strong>
+    <span id="kills">처치 0</span>
+  </div>
+  <button id="return" hidden>귀환 · 보상 받기</button>
+  <div id="bossbar" hidden><b>등불의 여왕 · 루세르나</b><i><span></span></i></div>
+  <div id="banner"><b></b><small></small></div>
+  <div class="crosshair" aria-hidden="true"><span></span></div>
+  <div class="help"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 이동 <em>·</em> <kbd>우클릭 드래그</kbd> 시점 <em>·</em> <kbd>SPACE</kbd>/<kbd>C</kbd> 고도 <em>·</em> <kbd>SHIFT</kbd> 가속 <em>·</em> <kbd>클릭</kbd>/<kbd>F</kbd> 브레스</div>
+</main>
+
+<section class="overlay" id="start">
+  <div class="panel hero">
+    <p class="eyebrow">A NEW LEGEND TAKES FLIGHT</p>
+    <h2 class="title"><span>Dragon</span><span>Empire</span></h2>
+    <p class="subtitle">하늘의 작은 불꽃이 <em>제국의 황제</em>가 되기까지</p>
+    <div class="rule"><i></i></div>
+    <p class="lead">작은 용과 함께 하늘을 날며 등불 군단을 물리치세요. 성장의 갈림길에서 화염 또는 폭풍의 힘을 깨우고, 드래곤 엠페러가 된 뒤에도 황제의 하늘을 누비며 위계를 올리세요.</p>
+    <ol class="stages">
+      <li><b>Ⅰ</b>해츨링</li><li><b>Ⅱ</b>드레이크</li><li><b>Ⅲ</b>웜</li><li class="crown"><b>Ⅳ</b>엠페러</li>
+    </ol>
+    <div class="actions">
+      <button id="begin">비행 시작 <span>↗</span></button>
+      <button id="pause-return" class="ghost" hidden>귀환 · 보상 받기</button>
+    </div>
+    <div class="instructions">
+      <span><kbd>WASD</kbd> 이동</span><span><kbd>우클릭 드래그</kbd> 시점</span><span><kbd>SPACE</kbd><kbd>C</kbd> 고도</span>
+      <span><kbd>SHIFT</kbd> 가속</span><span><kbd>클릭</kbd><kbd>F</kbd> 브레스</span><span><kbd>ESC</kbd> 일시정지</span>
+    </div>
+    <small class="note">초기 3D 프로토타입 · PC 키보드와 마우스 권장 · 모바일 터치 지원</small>
+  </div>
+</section>
+
+<section class="overlay center" id="choice" hidden>
+  <div class="panel choice frame">
+    <p class="eyebrow">EVOLUTION AWAITS</p>
+    <h2>진화의 갈림길</h2>
+    <p class="lead">당신의 드래곤은 어떤 힘을 깨울까요?</p>
+    <div class="options">
+      <button data-path="flame">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4c3 9 13 13 13 25a13 13 0 0 1-26 0c0-7 4-10 6-14 1 4 3 6 5 7-1-7 0-13 2-18z" fill="currentColor"/></svg>
+        <b>화염의 군주</b><small>브레스 피해량 증가<br>붉은 불꽃과 거대한 뿔</small>
+      </button>
+      <button data-path="storm">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M28 3L9 27h12l-4 18 22-26H27z" fill="currentColor"/></svg>
+        <b>폭풍의 지배자</b><small>비행 속도와 생명력 증가<br>푸른 빛과 넓어진 날개</small>
+      </button>
+    </div>
+  </div>
+</section>
+
+<section class="overlay center" id="result" hidden>
+  <div class="panel result frame">
+    <p class="eyebrow" id="result-label"></p>
+    <h2 id="result-title"></h2>
+    <div class="rule"><i></i></div>
+    <p id="result-desc"></p>
+    <button id="restart">다시 비행하기 <span>↗</span></button>
+  </div>
+</section>
+
+<script type="module" src="game.js"></script>
+</body>
+</html>
