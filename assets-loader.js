@@ -52,7 +52,8 @@ export function setDragonPathVisual(model, path) {
   });
 }
 // 승인된 GLB를 로드해 목표 크기(길이 m)로 정규화하고 전방을 -Z로 맞춘 Group을 돌려준다.
-export async function loadModel(id, { length = 4.5, flap = false, rig = false } = {}) {
+// height: 사람형처럼 키(m) 기준으로 맞출 때. feet: 발바닥을 원점(y=0)에 둠
+export async function loadModel(id, { length = 4.5, flap = false, rig = false, height = 0, feet = false } = {}) {
   const a = manifest?.[id];
   if (!a || a.type !== 'glb') return null;
   try {
@@ -63,14 +64,14 @@ export async function loadModel(id, { length = 4.5, flap = false, rig = false } 
     const rigU = (rig || flap) ? createRigUniforms() : null;
     root.traverse(o => {
       if (!o.isMesh) return;
-      o.castShadow = true; o.receiveShadow = true;
+      o.castShadow = true; o.receiveShadow = true; if (o.isSkinnedMesh) o.frustumCulled = false;
       if (rigU) applyDragonRig(o, rigU);
     });
-    root.position.sub(center);
+    root.position.sub(center); if (feet) root.position.y += size.y / 2;
     const wrap = new T.Group(); wrap.add(root);
     // manifest forward가 '+Z'이면 게임 기준(-Z 전방)으로 돌린다
     if ((a.forward || '+Z') === '+Z') root.rotation.y = Math.PI;
-    wrap.scale.setScalar((length / Math.max(size.x, size.z)) * (a.scale || 1));
+    wrap.scale.setScalar((height ? height / size.y : length / Math.max(size.x, size.z)) * (a.scale || 1));
     wrap.userData = { fromManifest: id, rigged: !!a.rigged, animations: g.animations, rig: rigU, unit: length };
     return wrap;
   } catch (e) {

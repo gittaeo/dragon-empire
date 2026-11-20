@@ -619,7 +619,7 @@ function applySavedDragon(d) {
   kills = Math.max(0, d.kills | 0); lateKills = Math.max(0, d.lateKills | 0); bossKills = Math.max(0, d.bossKills | 0);
   hp = maxHpForLevel(level) * (path === 'storm' ? 1.1 : 1); scaleNow = stageScale(level); camDistNow = STAGE.camDist[stage() - 1];
 }
-const gnd = createGround({scene, terrain, player, store, banner, burst, spark, sfx, slot: SLOT,
+const gnd = createGround({scene, terrain, player, store, banner, burst, spark, sfx, slot: SLOT, loadModel,
   shake: a => { shakeAmp = Math.max(shakeAmp, a); }, fx: () => fxScale(), scale: () => scaleNow, path: () => path, pathColor,
   getYaw: () => yaw, getPitch: () => pitch, setYaw: v => { yaw = v; pitch = 0; }, time: () => time,
   onLandStart: () => { // 착륙 시 주변 적·탄 정리 (임시: 안전 구역에는 전투 없음)
@@ -638,6 +638,7 @@ function groundKey(code) {
 }
 let questKey = '';
 function updateQuestHud() { const t = gnd.objective(); if (t !== questKey) { questKey = t; $('#quest').textContent = t ? '임무 · ' + t : ''; $('#quest').hidden = !t; } }
+loadManifest().then(() => gnd.loadHero()).catch(e => console.warn('[hero]', e)); // 여성 폴리모프 모델
 applySavedDragon(gnd.world.dragon);
 gnd.restore();
 // 시작 화면: 슬롯 목록 · 이어하기 · 새 용으로 시작

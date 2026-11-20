@@ -103,6 +103,19 @@
       "triangles": 25900,
       "approvedAt": "2026-11-20",
       "notes": "4단계 엠페러 · 매끈한 머리+금빛 큰 뿔 2개+금테(v2)"
+    },
+    {
+      "id": "polymorph_female",
+      "file": "approved/polymorph_female.glb",
+      "type": "glb",
+      "rigged": true,
+      "animations": [],
+      "scale": 1,
+      "forward": "+Z",
+      "heightMeters": 1.7,
+      "source": "Codex 제작: 콘셉트 polymorph-turnaround-v1 → Higgsfield image_to_3d(18크레딧) → 인간형 자동 리깅(5크레딧), 텍스처 1024 압축본",
+      "approvedAt": "2026-11-21",
+      "notes": "주인공 여성 폴리모프(뿔·꼬리 노출 콘셉트). 뼈대 24개(Mixamo식 이름), 클립은 기본 자세 1프레임뿐 → ground.js 절차적 걷기. 꼬리 뼈대 없음."
     }
   ]
 }

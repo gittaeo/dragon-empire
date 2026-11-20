@@ -156,6 +156,34 @@ export function createGround(ctx) {
   // 인간형 주인공 (같은 주인공의 다른 모습: 망토 색은 혈통 색)
   human = person(0x7a2a1a, 0xeec9a5, 0x2a1a12); human.visible = false; scene.add(human);
   const ember = new T.Mesh(new T.SphereGeometry(.07, 8, 6), new T.MeshBasicMaterial({color: 0xffa23a})); ember.position.set(0, 1.25, -.29); human.add(ember);
+  // --- 승인된 여성 폴리모프 모델(Codex 제작, manifest 'polymorph_female'). 클립이 없어 뼈대를 절차적으로 움직여 걷게 함
+  let hero = null, heroAmt = 0; const bones = {}, rest = {}, axis = {};
+  const BONES = ['Hips', 'Spine', 'Spine01', 'Spine02', 'neck', 'LeftUpLeg', 'LeftLeg', 'RightUpLeg', 'RightLeg', 'LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm'];
+  async function loadHero() {
+    if (!ctx.loadModel || hero) return false;
+    const m = await ctx.loadModel('polymorph_female', {height: 1.75, feet: true}); if (!m) return false;
+    m.updateMatrixWorld(true);
+    m.traverse(o => { if (o.isBone && BONES.includes(o.name)) bones[o.name] = o; });
+    const qp = new T.Quaternion();
+    for (const [n, b] of Object.entries(bones)) { // 몸의 좌우축(모델 X)을 각 뼈 부모 좌표계로 바꿔 둠 → 앞뒤 흔들기 축
+      rest[n] = b.quaternion.clone(); b.parent.getWorldQuaternion(qp); axis[n] = new T.Vector3(1, 0, 0).applyQuaternion(qp.invert()).normalize();
+    }
+    for (const c of human.children) c.visible = false;
+    human.add(m); hero = m; return true;
+  }
+  const _q = new T.Quaternion();
+  function pose(n, ang) { const b = bones[n]; if (b) b.quaternion.copy(rest[n]).premultiply(_q.setFromAxisAngle(axis[n], ang)); }
+  function animateHero(t, moving, dt, run) {
+    heroAmt += ((moving ? 1 : 0) - heroAmt) * Math.min(1, dt * 8);
+    const a = heroAmt, sw = Math.sin(t), k = run ? 1.25 : 1;
+    pose('LeftUpLeg', .5 * k * sw * a); pose('RightUpLeg', -.5 * k * sw * a);
+    pose('LeftLeg', -.75 * k * a * Math.max(0, Math.sin(t - 1.2))); pose('RightLeg', -.75 * k * a * Math.max(0, Math.sin(t + Math.PI - 1.2)));
+    pose('LeftArm', -.35 * k * sw * a); pose('RightArm', .35 * k * sw * a);
+    pose('LeftForeArm', -.2 * a); pose('RightForeArm', -.2 * a);
+    const breath = Math.sin(ctx.time() * 1.6) * .03 * (1 - a);
+    pose('Spine02', breath + .06 * a * (run ? 1.5 : 1)); pose('Hips', .04 * a);
+    if (bones.Hips) bones.Hips.position.y = bones.Hips.userData.y0 ?? (bones.Hips.userData.y0 = bones.Hips.position.y);
+  }
   function tintHuman() { const c = ctx.path() === 'storm' ? 0x2a5a8a : 0x7a2a1a; human.userData.body.material.color.set(c); for (const a of human.userData.arms) a.material.color.set(c); ember.material.color.set(ctx.path() === 'storm' ? 0x9ff0ff : 0xffa23a); }
 
   // --- 저장된 진행 반영
@@ -311,12 +339,13 @@ export function createGround(ctx) {
     const sw = len > .05 && !dialog ? Math.sin(hp.walkT) * .6 : 0;
     human.userData.legs[0].rotation.x = sw; human.userData.legs[1].rotation.x = -sw; human.userData.arms[0].rotation.x = -sw * .7; human.userData.arms[1].rotation.x = sw * .7;
     human.userData.body.position.y = 1.05 + Math.abs(sw) * .04;
+    if (hero) animateHero(hp.walkT, len > .05 && !dialog, dt, run > 1);
   }
   function updateCameraHuman(camera, dt) {
-    const yaw = ctx.getYaw(), pitch = ctx.getPitch(), dist = 6.5;
+    const yaw = ctx.getYaw(), pitch = ctx.getPitch(), dist = 4.2;
     const dir = camV.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
     const up = new T.Vector3(Math.sin(yaw) * Math.sin(pitch), Math.cos(pitch), Math.cos(yaw) * Math.sin(pitch));
-    const target = camT.copy(hp.pos).add(v2.set(0, 1.6, 0));
+    const target = camT.copy(hp.pos).add(v2.set(0, 1.45, 0));
     const desired = target.clone().addScaledVector(dir, -dist).addScaledVector(up, .8);
     desired.y = Math.max(desired.y, groundAt(desired.x, desired.z) + .6);
     camera.position.lerp(desired, 1 - Math.exp(-12 * dt)); camera.position.y = Math.max(camera.position.y, groundAt(camera.position.x, camera.position.z) + .5);
@@ -392,7 +421,7 @@ export function createGround(ctx) {
     ctx.onModeChange(mode);
   }
   return {
-    saveDragon(d) { world.dragon = d; return save(); }, slot,
+    saveDragon(d) { world.dragon = d; return save(); }, slot, loadHero, get heroLoaded() { return !!hero; },
     update, restore, tryLand, takeoff, toHuman, toDragon, interact, objective, save,
     get mode() { return mode; }, get animating() { return !!anim; }, get dragonMul() { return dragonMul; }, get talking() { return !!dialog; }, get busy() { return !!anim || !!dialog; }, get world() { return world; }, get loadedFrom() { return from; },
     get human() { return hp; }, get landCheck() { return landCheck; }, spots, positions: {tower: towerPos, bench: benchPos, sera: seraPos},
