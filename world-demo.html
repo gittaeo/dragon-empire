@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>드래곤 엠파이어 — 월드 데모 (world-demo)</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:system-ui,sans-serif;touch-action:none}
+#hud{position:fixed;left:12px;top:10px;color:#fff;text-shadow:0 1px 3px #000;font-size:13px;line-height:1.5;pointer-events:none}
+#hud b{font-size:18px}
+#bar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:#0008;padding:8px 12px;border-radius:12px;color:#fff;font-size:12px}
+#bar input{width:220px} #bar button{background:#ffffff22;color:#fff;border:1px solid #fff5;border-radius:8px;padding:4px 9px}
+#help{position:fixed;right:12px;top:10px;color:#fffc;font-size:12px;text-align:right;text-shadow:0 1px 3px #000;pointer-events:none}
+</style></head><body>
+<div id="hud"><b id="clock">06:00</b><br><span id="info"></span></div>
+<div id="help">드래그: 시점 · WASD: 이동 · Space/C: 상승/하강 · Shift: 가속<br>모바일: 왼쪽 드래그 이동 · 오른쪽 드래그 시점 · [자동비행]</div>
+<div id="bar">시간 <input id="slider" type="range" min="0" max="24" step="0.05" value="6">
+<button id="speed">x1</button><button id="pause">⏸</button><button id="auto">자동비행</button></div>
+<script type="module">
+import * as THREE from './vendor/three.module.js';
+import { createTerrain } from './world/terrain.js';
+import { createTimeOfDay } from './world/timeofday.js';
+import { createClouds } from './world/clouds.js';
+
+const qs = new URLSearchParams(location.search);
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = qs.get('shadows') !== '0';
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.5, 20000);
+
+const tex = qs.get('tex') === '1' ? { meadow: 'assets/pending/terrain/meadow.png', cliff: 'assets/pending/terrain/cliff.png', snow: 'assets/pending/terrain/snowrock.png' } : {};
+const terrain = createTerrain({ scene, renderer, seed: 7, textures: tex, clouds: false });
+const tod = createTimeOfDay({ scene, renderer, camera, startHour: +(qs.get('h') ?? 6), dayLengthSec: +(qs.get('len') ?? 660) });
+const clouds = createClouds({ scene });
+
+// ---- 카메라 상태
+const pos = terrain.spawnPoint.clone(); let yaw = +(qs.get('yaw') ?? 0), pitch = +(qs.get('pitch') ?? -0.12);
+if (qs.get('x')) pos.x = +qs.get('x'); if (qs.get('z')) pos.z = +qs.get('z');
+if (qs.get('y')) pos.y = Math.max(terrain.heightAt(pos.x, pos.z), terrain.waterLevel) + +qs.get('y');
+const keys = {}; addEventListener('keydown', e => keys[e.code] = true); addEventListener('keyup', e => keys[e.code] = false);
+let auto = qs.get('auto') === '1', autoT = 0;
+const touches = new Map(); let mx = 0, mz = 0;
+renderer.domElement.addEventListener('pointerdown', e => { renderer.domElement.setPointerCapture(e.pointerId); touches.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, left: e.pointerType === 'touch' && e.clientX < innerWidth / 2 }); });
+renderer.domElement.addEventListener('pointermove', e => { const t = touches.get(e.pointerId); if (!t) return;
+  if (t.left) { mx = THREE.MathUtils.clamp((e.clientX - t.sx) / 60, -1, 1); mz = THREE.MathUtils.clamp((e.clientY - t.sy) / 60, -1, 1); }
+  else { yaw -= (e.clientX - t.x) * 0.004; pitch = THREE.MathUtils.clamp(pitch - (e.clientY - t.y) * 0.004, -1.4, 1.4); }
+  t.x = e.clientX; t.y = e.clientY; });
+const up = e => { const t = touches.get(e.pointerId); if (t?.left) { mx = mz = 0; } touches.delete(e.pointerId); };
+renderer.domElement.addEventListener('pointerup', up); renderer.domElement.addEventListener('pointercancel', up);
+
+// ---- UI
+const $ = id => document.getElementById(id); const speeds = [1, 10, 60]; let si = 0;
+$('slider').oninput = e => tod.setHour(+e.target.value);
+$('speed').onclick = () => { si = (si + 1) % speeds.length; tod.setSpeed(speeds[si]); $('speed').textContent = 'x' + speeds[si]; };
+$('pause').onclick = () => { tod.paused = !tod.paused; $('pause').textContent = tod.paused ? '▶' : '⏸'; };
+$('auto').onclick = () => { auto = !auto; };
+if (qs.get('paused') === '1') tod.paused = true;
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+const fwd = new THREE.Vector3(), right = new THREE.Vector3(), clock = new THREE.Clock();
+function frame() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (auto) { // 계곡을 도는 시네마틱 경로
+    autoT += dt * 0.035; const r = 1500 + Math.sin(autoT * 1.7) * 600;
+    const nx = Math.cos(autoT) * r, nz = Math.sin(autoT) * r;
+    const ny = Math.max(terrain.heightAt(nx, nz), terrain.waterLevel) + 140 + Math.sin(autoT * 3) * 90;
+    const target = new THREE.Vector3(nx, ny, nz); const d = target.clone().sub(pos);
+    if (d.lengthSq() > 1) { yaw = THREE.MathUtils.lerp(yaw, Math.atan2(-d.x, -d.z), 0.03); pitch = THREE.MathUtils.lerp(pitch, Math.atan2(d.y, Math.hypot(d.x, d.z)) * 0.6 - 0.08, 0.03); }
+    pos.lerp(target, Math.min(1, dt * 1.2));
+  } else {
+    const sp = (keys.ShiftLeft || keys.ShiftRight ? 260 : 90) * dt;
+    fwd.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)); right.set(Math.cos(yaw), 0, -Math.sin(yaw));
+    let f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) - mz, s = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + mx;
+    pos.addScaledVector(fwd, f * sp).addScaledVector(right, s * sp);
+    pos.y += ((keys.Space ? 1 : 0) - (keys.KeyC ? 1 : 0)) * sp;
+  }
+  const ground = Math.max(terrain.heightAt(pos.x, pos.z), terrain.waterLevel) + 8; if (pos.y < ground) pos.y = ground;
+  camera.position.copy(pos); camera.rotation.set(pitch, yaw, 0, 'YXZ');
+  tod.update(dt, pos); terrain.setSunDirection(tod.sunDirection); terrain.update(pos, dt); clouds.update(dt, camera, tod);
+  renderer.render(scene, camera);
+  const h = tod.hour; $('clock').textContent = String(Math.floor(h)).padStart(2, '0') + ':' + String(Math.floor((h % 1) * 60)).padStart(2, '0');
+  if (!$('slider').matches(':active')) $('slider').value = h;
+  $('info').textContent = `고도 ${Math.round(pos.y - terrain.heightAt(pos.x, pos.z))}m · draw ${renderer.info.render.calls} · tri ${(renderer.info.render.triangles / 1000).toFixed(0)}k`;
+  requestAnimationFrame(frame);
+}
+window.__ready = true; frame();
+</script></body></html>
