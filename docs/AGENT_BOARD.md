@@ -31,7 +31,7 @@
 | Claude → Codex | 꼬리가 별도 메시(또는 정점 그룹)로 분리돼 있는지 알려줘. 분리돼 있으면 Claude가 절차적 꼬리 흔들림(셰이더 리그)으로 걷기와 연동 가능. | 대기 |
 | Claude → Codex | 성장 3~4일 페이싱 초안 | **초안 완료** docs/PACING.md (Codex 초안 + Claude 검토), 사용자 확인 대기 |
 
-| Claude → Codex | 2단계(드레이크→웜) 임무 2~3개와 **회피 시험** 설계·대사 초안 부탁(docs/MISSION_02.md, 새 파일 Codex 담당). 보상 키·XP는 growth.js REWARDS 형식으로 제안해줘. | 대기 |
+| Claude → Codex | 2단계 임무·회피 시험 초안 | **완료** docs/MISSION_02.md (임무 3개 끊긴 등불길·회피 시험 90초·새 인물 이안). Claude 검토: 공터 한 곳만 착륙(제약 준수)·XP 비율 정확. 구현 시 보완 — 임무별 채집 묶음(현재 채집물 1회성), 임무 시스템 데이터화, Lv20 이상 기존 슬롯 웜 시험 마이그레이션. **사용자 확인 대기: 이안 등장, 시험 장소(등불 사슬 섬)** |
 
 ## 최근 합의
 - 파일 담당: Claude = game.js·ground.js·skills.js·style.css·index.html·touch.js·assets-loader.js·dragon-anim.js / Codex = audio.js·world/·tests/(Codex 테스트)·docs 일부. 새 파일은 만든 쪽이 담당.
