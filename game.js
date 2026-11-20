@@ -361,7 +361,7 @@ function updateStageLook(raw) {
   const sx = own ? 1 : k('wing'), sz = own ? 1 : k('tail');
   if (mdl) { mdl.scale.x += (mdl.userData.baseScale * sx - mdl.scale.x) * Math.min(1, raw * 3); mdl.scale.z += (mdl.userData.baseScale * sz - mdl.scale.z) * Math.min(1, raw * 3); }
   if (mdl && !mdl.userData.glowMats) { mdl.userData.glowMats = []; mdl.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) if (m.emissive) mdl.userData.glowMats.push(m); }); }
-  for (const m of mdl?.userData.glowMats || []) { const base = m.userData.dragonOriginal?.emissiveIntensity ?? 1; const want = Math.max(base, path ? .55 : base) * k('glow') * (1 + .15 * Math.sin(time * 3)); m.emissiveIntensity += (want - m.emissiveIntensity) * Math.min(1, raw * 2); }
+  for (const m of mdl?.userData.glowMats || []) { const base = m.userData.dragonOriginal?.emissiveIntensity ?? 1; const want = (m.userData.mapGlow ? .16 + .06 * (st - 1) : Math.max(base, path ? .55 : base) * k('glow')) * (1 + .15 * Math.sin(time * 3)); m.emissiveIntensity += (want - m.emissiveIntensity) * Math.min(1, raw * 2); }
   // 엠페러: 머리 뒤 금빛 후광(콘셉트 아트의 헤일로)
   const on = st >= 4 ? 1 : 0; halo.material.opacity += (on * .9 - halo.material.opacity) * Math.min(1, raw * 2); haloInner.material.opacity = halo.material.opacity * .18;
   halo.visible = halo.material.opacity > .01; halo.rotation.z += raw * .6; halo.scale.setScalar(.75 + .05 * Math.sin(time * 2));
@@ -606,7 +606,9 @@ document.body.classList.toggle('storm', path === 'storm');
 refresh(); loop();
 // 단계별 드래곤 모델: 1 해츨링(필수) · 2 드레이크 · 3 웜 · 4 엠페러 (manifest에 없으면 아래 단계 모델을 계속 사용)
 function addStageModel(i, m) {
-  if (!m) return; m.userData.baseScale = m.scale.x; m.userData.stageIndex = i; m.visible = false; player.add(m); stageModels[i] = m; setDragonPathVisual(m, path);
+  if (!m) return; m.userData.baseScale = m.scale.x; m.userData.stageIndex = i;
+  // 발광 맵이 없는 단계 모델은 색 텍스처를 약하게 자체발광시켜 용암 균열이 빛나 보이게
+  m.traverse(o => { if (o.isMesh) for (const mt of [].concat(o.material)) if (mt.map && !mt.emissiveMap) { mt.emissiveMap = mt.map; mt.emissive = new T.Color(0xffffff); mt.emissiveIntensity = .2; mt.userData.mapGlow = true; mt.needsUpdate = true; } }); m.visible = false; player.add(m); stageModels[i] = m; setDragonPathVisual(m, path);
   if (i === 0) player.children.forEach(c => { if (c !== halo && !stageModels.includes(c)) c.visible = false; });
 }
 function syncStageModel() {

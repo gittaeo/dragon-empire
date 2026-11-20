@@ -37,3 +37,13 @@
 - 소스: assets/pending/concepts/lantern_minions.png, boss_lucerna.png 에서 정면 1장씩 크롭(뒷면은 AI 추정). 원본 2048 GLB는 assets/pending/models/enemies(git 제외).
 - 압축: `node scripts/shrink-glb.mjs in.glb out.glb 1024` (sharp, 지오메트리 동일).
 - 게임 연출: 리깅 없음 → 롤·나방 scale 날갯짓, 텍스처 emissive 0.35(보스 0.45)로 등불 발광. 적 크기 단계별 ×1/1.3/1.65/2.
+
+## 단계별 드래곤 (2026-11-20 사용자 승인)
+| id | 파일 | 출처 | 삼각형 | 용량(1024 JPEG, PBR 3장) | 전방축 |
+|---|---|---|---|---|---|
+| dragon_drake | assets/approved/dragon_drake.glb | gpt_image_2_6 d8761c1f → Meshy7 d5340204 | 25.9k | 2.22 MB | +Z |
+| dragon_wyrm | assets/approved/dragon_wyrm.glb | gpt_image_2_6 3f2cdaa6 → Meshy7 47b96edf | 25.9k | 2.35 MB | +Z |
+| dragon_emperor | assets/approved/dragon_emperor.glb | gpt_image_2_6 0bab74c4 → Meshy7 e4f6f3a8 | 25.9k | 2.54 MB | +Z |
+- 소스: assets/pending/concepts/evolution_lineup.png + dragon_hatchling_source.png 참고로 단계별 정면 3/4·날개 펼친 이미지 생성 후 3D화. 원본 GLB는 assets/pending/models/evolution.
+- 발광 맵 없음 → game.js에서 색 텍스처를 emissiveMap으로 약하게(0.16~0.34) 사용. 날갯짓은 dragon-anim.js 셰이더 리그(단계별 프레임 확인).
+- 사용자 피드백(머리 잔가시 과다 → 매끈한 머리 + 큰 뿔 2개)으로 웜·엠페러 재생성 진행 중(61e49281/585ec2c4 이미지 → 3D 7254b9e3/a5296fd8).

@@ -64,6 +64,45 @@
       "triangles": 25826,
       "approvedAt": "2026-11-20",
       "notes": "보스 루세르나(엠페러 이후) · 콘셉트 assets/pending/concepts 크롭"
+    },
+    {
+      "id": "dragon_drake",
+      "file": "approved/dragon_drake.glb",
+      "type": "glb",
+      "rigged": false,
+      "animations": [],
+      "scale": 1,
+      "forward": "+Z",
+      "source": "Higgsfield gpt_image_2_6 → image_to_3d (Meshy 7) job d5340204-d5e2-4e9f-8f19-4b7c5f8e10c6, PBR, 텍스처 1024 JPEG 압축본",
+      "triangles": 25900,
+      "approvedAt": "2026-11-20",
+      "notes": "2단계 드레이크 · 날갯짓은 dragon-anim.js 셰이더 리그"
+    },
+    {
+      "id": "dragon_wyrm",
+      "file": "approved/dragon_wyrm.glb",
+      "type": "glb",
+      "rigged": false,
+      "animations": [],
+      "scale": 1,
+      "forward": "+Z",
+      "source": "Higgsfield gpt_image_2_6 → image_to_3d (Meshy 7) job 47b96edf-f735-4036-b4ec-bc0127ef8d55, PBR, 텍스처 1024 JPEG 압축본",
+      "triangles": 25900,
+      "approvedAt": "2026-11-20",
+      "notes": "3단계 웜 · 날갯짓은 dragon-anim.js 셰이더 리그"
+    },
+    {
+      "id": "dragon_emperor",
+      "file": "approved/dragon_emperor.glb",
+      "type": "glb",
+      "rigged": false,
+      "animations": [],
+      "scale": 1,
+      "forward": "+Z",
+      "source": "Higgsfield gpt_image_2_6 → image_to_3d (Meshy 7) job e4f6f3a8-0133-4092-876e-26c5ce96dee1, PBR, 텍스처 1024 JPEG 압축본",
+      "triangles": 25900,
+      "approvedAt": "2026-11-20",
+      "notes": "4단계 드래곤 엠페러 · 날갯짓은 dragon-anim.js 셰이더 리그"
     }
   ]
 }
