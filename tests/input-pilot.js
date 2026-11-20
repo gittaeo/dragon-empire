@@ -69,9 +69,10 @@ function tick(g, engageRange, standoff) {
   for (const e of g.enemies) { const d = Math.hypot(e.position.x - pl.x, e.position.y - pl.y, e.position.z - pl.z); if (d < bd) { bd = d; best = e; } }
   if (!p.orbit) { mouse('mousedown', 2); p.orbit = true; }
   if (best) {
-    const dx = best.position.x - pl.x, dy = best.position.y - pl.y, dz = best.position.z - pl.z;
-    const wantYaw = Math.atan2(-dx, -dz), wantPitch = Math.asin(dy / Math.max(bd, 1));
-    const dyaw = wrap(wantYaw - h.yaw), dp = wantPitch - h.pitch;
+    // 사람처럼 화면 십자선(카메라 정면)을 적에게 맞춘다
+    const cf = g.camera.getWorldDirection(g.camera.position.clone()), cp = g.camera.position;
+    const dx = best.position.x - cp.x, dy = best.position.y - cp.y, dz = best.position.z - cp.z, dc = Math.hypot(dx, dy, dz) || 1;
+    const dyaw = wrap(Math.atan2(-dx, -dz) - Math.atan2(-cf.x, -cf.z)), dp = Math.asin(dy / dc) - Math.asin(Math.max(-1, Math.min(1, cf.y)));
     const mx = Math.max(-80, Math.min(80, -dyaw / .004 * .5)), my = Math.max(-80, Math.min(80, -dp / .003 * .5));
     if (Math.abs(mx) > .5 || Math.abs(my) > .5) mouse('mousemove', 0, {movementX: mx, movementY: my});
     const aimErr = Math.hypot(dyaw, dp);
@@ -96,6 +97,17 @@ export function report() {
     minClear: +p.minClear.toFixed(2), terrainHitTicks: p.terrainHits, minCamClear: +p.minCamClear.toFixed(2), camUnderTicks: p.camUnder, minCamBodyRatio: +p.minCamBody.toFixed(2), camInBodyTicks: p.camInBody, ticks: p.frames, done: p.done, events: p.events};
 }
 export const samples = () => pilot?.samples;
+
+// 활공 테스트: forwardMs 동안 W(+선택 pitch) 후 모든 입력을 놓고 sampleMs 간격으로 상태 기록
+export async function glideTest({forwardMs = 2500, samples: n = 10, sampleMs = 400, divePitch = null} = {}) {
+  const g = window.__game, sleep = ms => new Promise(r => setTimeout(r, ms));
+  if (pilot) { clearInterval(pilot.timer); releaseAll(); } pilot = pilot || {held: {}};
+  if (divePitch !== null) { mouse('mousedown', 2); for (let i = 0; i < 20; i++) { mouse('mousemove', 0, {movementY: -(divePitch - g.hud.pitch) / .003 / 4}); await sleep(30); } mouse('mouseup', 2); }
+  key('KeyW', true); await sleep(forwardMs); key('KeyW', false);
+  const p0 = g.player.position.clone(), out = [];
+  for (let i = 0; i < n; i++) { await sleep(sampleMs); const h = g.hud; out.push({gl: h.gliding, v: +h.flySpeed.toFixed(1), y: Math.round(g.player.position.y)}); }
+  return {pitch: +g.hud.pitch.toFixed(2), dist: Math.round(g.player.position.distanceTo(p0)), out};
+}
 
 // 지형 스트레스: 파일럿 자동 조종을 멈추고 target(x,z) 방향으로 최저 고도(C 유지)+가속으로 돌진.
 // 매 프레임 날개끝/머리/꼬리 관통, 카메라 지하, 카메라→드래곤 시야가 지형에 막히는지, 고도 튐을 측정.

@@ -19,3 +19,15 @@
   #hud .status{transform:scale(.72);transform-origin:top left}
   #hud .mission{transform:scale(.7);transform-origin:top right}
 }
+
+/* M1: 귀환 버튼, 배너, 피격 표시, 좁은 화면 HUD 겹침 수정 */
+#return{position:fixed;right:36px;top:212px;z-index:30;border:1px solid #f3c67c;background:#2a2412cc;color:#ffe2a8;font:900 12px inherit;font-family:inherit;padding:10px 16px;border-radius:20px;cursor:pointer}
+#return:hover{background:#4a3c18}
+.panel button.ghost{background:transparent;color:#ffe2a8;border:1px solid #f3c67c;margin-left:10px}
+#banner{position:fixed;left:50%;top:24%;transform:translate(-50%,-10px);text-align:center;opacity:0;transition:opacity .35s,transform .35s;pointer-events:none;z-index:25;text-shadow:0 2px 18px #000a}
+#banner.on{opacity:1;transform:translate(-50%,0)}
+#banner b{display:block;font-size:clamp(22px,3.4vw,40px);letter-spacing:.06em;color:#ffe0a0}
+#banner small{display:block;margin-top:6px;font-size:12px;color:#f2e7d0}
+body.hurt .vignette{animation:hurt .35s}
+@keyframes hurt{0%{box-shadow:inset 0 0 120px #ff2a2a99}100%{box-shadow:inset 0 0 0 #ff2a2a00}}
+@media(max-width:420px){.mission{top:auto;bottom:96px}#return{top:auto;bottom:56px;right:18px}}
