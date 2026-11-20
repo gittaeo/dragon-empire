@@ -1,22 +1,28 @@
 import {test} from 'node:test';
 import {strict as assert} from 'node:assert';
-import {addExperience, killExperience, stageForLevel, MAX_LEVEL, STAGE, boltDamage, boltInterval, addRankExperience, rankXpToNext, crystalReward} from '../progression.js';
+import {emptyGrowth, combatXp, tickPlay, accrueRest, gateFor, holdAtGate, STAGE_TOTALS, KILL_BASE, WINDOW_SEC} from '../growth.js';
+import {xpToNext, addExperience, killExperience, stageForLevel, MAX_LEVEL, STAGE, boltDamage, boltInterval, addRankExperience, rankXpToNext, crystalReward} from '../progression.js';
 
-test('일반 적 경험치로 모든 성장 단계와 최종 레벨에 도달하고, 처치 수가 10분 페이스 범위다', () => {
-  let state = {level: 1, xp: 0}; const reached = new Set([1]); const killsPerStage = [0, 0, 0];
-  let kills = 0;
-  while (state.level < MAX_LEVEL && kills < 1000) {
-    const award = killExperience(state.level);
-    assert.ok(Number.isFinite(award) && award > 0);
-    killsPerStage[stageForLevel(state.level) - 1]++;
-    state = addExperience(state, award); reached.add(stageForLevel(state.level)); kills++;
-  }
-  assert.equal(state.level, MAX_LEVEL);
-  assert.deepEqual([...reached], [1, 2, 3, 4]);
-  // 스폰 속도(0.5/0.6/0.7 마리/초)가 처치 속도 상한 → 단계별 최소 시간
-  const minSeconds = killsPerStage.reduce((s, k, i) => s + k / STAGE.spawnRate[i], 0);
-  assert.ok(kills >= 150 && kills <= 300, `완주 처치 수 ${kills}`);
-  assert.ok(minSeconds >= 300, `스폰 한도상 최단 완주 ${Math.round(minSeconds)}초는 5분 이상이어야 함`);
+// 영구 성장 페이싱(docs/PACING.md, 2026-11-21 승인): 이전 '한 판 10분' 테스트를 대체
+test('페이싱: 단계 구간 총량 1000/1200/1800, 성장 처치 XP 일반 4·엘리트 12, 엠페러 위계는 이전 값', () => {
+  const tot = [0, 0, 0]; for (let L = 1; L < MAX_LEVEL; L++) tot[stageForLevel(L) - 1] += xpToNext(L);
+  assert.deepEqual(tot, STAGE_TOTALS);
+  assert.equal(killExperience(5), KILL_BASE); assert.equal(killExperience(15, 3), 12); assert.ok(killExperience(MAX_LEVEL) >= 60);
+  for (let L = 2; L < 10; L++) assert.ok(xpToNext(L) >= xpToNext(L - 1), '구간 안에서는 뒤로 갈수록 필요량 증가');
+});
+test('페이싱: 전투만으로는 예산 뒤 10%로 줄어 1단계 XP의 대부분을 콘텐츠에서 얻어야 함', () => {
+  const g = emptyGrowth(); let combat = 0; for (let i = 0; i < 200; i++) combat += combatXp(g, KILL_BASE, 1);
+  assert.ok(combat < 0.4 * STAGE_TOTALS[0], `한 창에서 200처치 XP ${combat}`);
+  tickPlay(g, WINDOW_SEC + 1); assert.equal(combatXp(g, KILL_BASE, 1), KILL_BASE, '50분 창이 바뀌면 예산 회복');
+});
+test('페이싱: 휴식 숨결은 쉰 시간만큼 쌓여 전투 XP를 2배로 하고 한 레벨분을 넘지 않음', () => {
+  const g = emptyGrowth(); g.lastSeen = 1; accrueRest(g, 1 + 1e9, 5); assert.equal(g.rest, xpToNext(5));
+  const xp = combatXp(g, KILL_BASE, 1); assert.equal(xp, KILL_BASE * 2);
+});
+test('페이싱: 드레이크 시험 전에는 Lv9에서 대기하고 초과 XP는 한 레벨분만 보관', () => {
+  const g = emptyGrowth(); let st = addExperience({level: 9, xp: 0}, 5000); const gate = gateFor(st.level, g); assert.ok(gate);
+  st = holdAtGate(st, g, gate); assert.equal(st.level, 9); assert.equal(g.pending, xpToNext(10));
+  g.trials.drake = true; assert.equal(gateFor(12, g), null);
 });
 
 test('일반 적 처치 타수: 1단계 3발 내외, 엠페러 1발', () => {

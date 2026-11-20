@@ -1,8 +1,11 @@
 // 성장·밸런스 공식 (M1, 2026-11-20). XP 곡선은 BALANCE.md, 나머지는 엠페러 모드 설계안 기준 초기값.
 // 플레이테스트로 조정한다. 숫자 표는 단계(1 해츨링 ~ 4 엠페러) 순서.
+import {pacedXpToNext, KILL_BASE} from './growth.js';
 export const MAX_LEVEL = 30;
 const round5 = v => Math.round(v / 5) * 5;
-export const xpToNext = level => round5(30 + 8 * level + 0.6 * level * level);
+// 영구 성장 페이싱(growth.js, 2026-11-21): 단계 구간 총량 1000/1200/1800. 이전 판 단위 곡선은 legacyXpToNext
+export const legacyXpToNext = level => round5(30 + 8 * level + 0.6 * level * level);
+export const xpToNext = level => pacedXpToNext(level);
 export const stageForLevel = level => level >= 30 ? 4 : level >= 20 ? 3 : level >= 10 ? 2 : 1;
 export const stageStartLevel = stage => [1, 10, 20, 30][stage - 1];
 export const stageScale = level => [1, 1.8, 3, 4.5][stageForLevel(level) - 1];
@@ -14,7 +17,8 @@ export function addExperience(state, amount) {
   return { level, xp };
 }
 // 처치 경험치: 일반 1, 나방 2, 기수 5, 엘리트 12 (등급은 M3에서 사용)
-export const killExperience = (level, tier = 1) => round5(8 + 2 * level) * tier;
+// 처치 경험치: 성장 구간은 일반 4 × 등급(엘리트 12), 엠페러 위계는 이전 값 유지(황제의 하늘 손맛 보존)
+export const killExperience = (level, tier = 1) => level >= MAX_LEVEL ? round5(8 + 2 * level) * tier : KILL_BASE * tier;
 export const maxHpForLevel = level => 100 + 10 * (level - 1);
 
 // 엠페러(Lv30) 이후 황제 위계. rank는 0부터, 다음 위계 필요량 1200 + 300·rank

@@ -229,12 +229,12 @@ export function createGround(ctx) {
     const from = player.position.clone(), to = new T.Vector3(player.position.x, landCheck.y + 2.2 * ctx.scale(), player.position.z);
     anim = {t: 0, dur: 1.2, from, to, kind: 'land'}; ctx.onLandStart?.(); return true;
   }
-  function finishLand() { mode = 'landed'; ctx.onModeChange(mode); ctx.burst(player.position, 0xd9c8a0, 40, 18, ctx.fx()); ctx.shake(.35); const first = world.step === 0; if (first) setStep('polymorph'); save(); ctx.banner('착륙', world.step <= 1 ? 'H — 인간형으로 변신' : 'SPACE 이륙 · H 변신', 1.6); if (first) say(MISSION01.arrive); }
+  function finishLand() { mode = 'landed'; ctx.onModeChange(mode); ctx.burst(player.position, 0xd9c8a0, 40, 18, ctx.fx()); ctx.shake(.35); const first = world.step === 0; if (first) setStep('polymorph'); save(); ctx.banner('착륙', world.step <= 1 ? 'H — 인간형으로 변신' : 'SPACE 이륙 · H 변신', 1.6); if (first) say(MISSION01.arrive); ctx.reward?.('quest_land', 'quest', 30, '골짜기에 내려앉기'); }
   function takeoff() {
     if (mode !== 'landed' || anim) return false;
     anim = {t: 0, dur: .8, from: player.position.clone(), to: player.position.clone().add(v.set(0, 14 * ctx.scale(), 0)), kind: 'takeoff'}; return true;
   }
-  function finishTakeoff() { mode = 'air'; ctx.onModeChange(mode); if (step() === 'takeoff') { setStep('done'); ctx.banner(MISSION01.titles.done, '임무 완료 · 진행 상황이 저장되었습니다', 3); } save(); }
+  function finishTakeoff() { mode = 'air'; ctx.onModeChange(mode); if (step() === 'takeoff') { setStep('done'); ctx.reward?.('quest_done', 'quest', 170, '첫 임무 완료'); ctx.banner(MISSION01.titles.done, '임무 완료 · 진행 상황이 저장되었습니다', 3); } save(); }
 
   // --- 변신 (임시 규칙: 착륙한 상태에서만, 공터 안에서만)
   function freeSpotNear(center, radius) {
@@ -256,7 +256,7 @@ export function createGround(ctx) {
   function finishToHuman() {
     mode = 'human'; human.visible = true; human.position.copy(hp.pos); player.visible = false; ctx.onModeChange(mode);
     ctx.burst(hp.pos.clone().add(v.set(0, 1, 0)), ctx.pathColor(0xffd27a, 0xbff6ff), 40, 6, .5);
-    if (world.step <= 2) { setStep('meet'); say(MISSION01.meet, () => setStep('gather')); } save();
+    if (world.step <= 2) { setStep('meet'); say(MISSION01.meet, () => { setStep('gather'); ctx.reward?.('quest_meet', 'quest', 40, '세라 만나기'); }); } save();
   }
   function toDragon() {
     if (mode !== 'human' || anim) return false;
@@ -295,19 +295,19 @@ export function createGround(ctx) {
     if (n.kind === 'sera') { const t = {meet: MISSION01.meet, gather: MISSION01.hint, workbench: MISSION01.hintBench, kit: MISSION01.hintKit, repair: MISSION01.hintRepair, takeoff: MISSION01.farewell, done: MISSION01.after}[st] || MISSION01.meet; say(t, () => { if (st === 'meet') setStep('gather'); }); return; }
     if (n.kind === 'site') {
       if (!canAfford(bag, RECIPES.workbench)) { ctx.banner('재료 부족', `작업대: 나뭇가지 2 · 돌 2 (보유 ${bag.branch}·${bag.stone})`, 1.6); say([{who: '세라', text: MISSION01.blocked.materials}]); return; }
-      pay(bag, RECIPES.workbench); world.built.workbench = true; applyWorldVisuals(); ctx.burst(benchPos.clone().add(v.set(0, 1, 0)), 0xffd27a, 50, 8, .6); ctx.sfx?.('skill_shield');
+      pay(bag, RECIPES.workbench); world.built.workbench = true; ctx.reward?.('craft_workbench', 'craft', 50, '작업대 제작'); applyWorldVisuals(); ctx.burst(benchPos.clone().add(v.set(0, 1, 0)), 0xffd27a, 50, 8, .6); ctx.sfx?.('skill_shield');
       if (world.step <= STEPS.indexOf('workbench')) setStep('kit'); say(MISSION01.benchBuilt); save(); return;
     }
     if (n.kind === 'bench') {
       if (bag.kit > 0 || world.built.tower) { ctx.banner('작업대', bag.kit > 0 ? '수리 키트를 이미 가지고 있습니다' : '지금 만들 것이 없습니다', 1.2); return; }
       if (!canAfford(bag, RECIPES.kit)) { ctx.banner('재료 부족', `수리 키트: 나뭇가지 1 · 돌 1 · 숨결 파편 1`, 1.6); return; }
-      pay(bag, RECIPES.kit); bag.kit = 1; ctx.burst(benchPos.clone().add(v.set(0, 1.2, 0)), 0xffc85a, 40, 6, .5); ctx.sfx?.('levelup');
+      pay(bag, RECIPES.kit); bag.kit = 1; ctx.reward?.('craft_kit', 'craft', 50, '수리 키트 제작'); ctx.burst(benchPos.clone().add(v.set(0, 1.2, 0)), 0xffc85a, 40, 6, .5); ctx.sfx?.('levelup');
       if (world.step <= STEPS.indexOf('kit')) setStep('repair'); say(MISSION01.kitMade); save(); return;
     }
     if (n.kind === 'tower') {
       if (world.built.tower) { ctx.banner('풍향탑', '바람이 다시 돌고 있습니다', 1.2); return; }
       if (!bag.kit) { ctx.banner('수리 키트가 필요합니다', world.built.workbench ? '작업대에서 수리 키트를 만드세요' : '먼저 작업대를 지으세요', 1.6); if (!world.built.workbench) say([{who: '세라', text: MISSION01.blocked.workbench}]); return; }
-      bag.kit = 0; world.built.tower = true; applyWorldVisuals(); ctx.burst(towerPos.clone().add(v.set(0, 7.5, 0)), 0xffd27a, 120, 20, 1); ctx.shake(.5); ctx.sfx?.('coronation');
+      bag.kit = 0; world.built.tower = true; ctx.reward?.('quest_repair', 'quest', 160, '풍향탑 수리'); applyWorldVisuals(); ctx.burst(towerPos.clone().add(v.set(0, 7.5, 0)), 0xffd27a, 120, 20, 1); ctx.shake(.5); ctx.sfx?.('coronation');
       setStep('takeoff'); say(MISSION01.repaired, () => say(MISSION01.farewell)); save(); return;
     }
   }

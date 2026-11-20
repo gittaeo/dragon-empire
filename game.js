@@ -10,6 +10,7 @@ import {createTouchControls} from './touch.js';
 import {loadManifest, loadModel, setDragonPathVisual} from './assets-loader.js';
 import {FlightAnimator} from './dragon-anim.js';
 import {createAudio} from './audio.js';
+import {emptyGrowth, migrateGrowth, accrueRest, tickPlay, combatXp, oneTime, gateFor, holdAtGate, REWARDS, SITES, DISCOVERY_STAGE_MUL} from './growth.js';
 import {createGround, activeSlot, listSlots, MAX_SLOTS, ACTIVE_SLOT_KEY} from './ground.js';
 import {createSkillSystem, skillFor, fireTrait, SLOT_UNLOCK, COMBO_WINDOW, comboLabel, ULT_PER_KILL, ULT_PER_SEC} from './skills.js';
 
@@ -102,7 +103,7 @@ let eliteCd = params.get('elite') ? 4 : 70, elite = null;
 const ELITE_GOLD = new T.Color(0xffc24a);
 function spawnElite() {
   groupCenter(_c); const e = makeEnemy(_c.x, _c.y, _c.z, 'knight'), u = e.userData;
-  e.scale.multiplyScalar(1.6); u.hp *= 8; u.xp = 12; u.elite = true; u.speed = .9; u.grow = (u.grow || 1) * 1.6;
+  e.scale.multiplyScalar(1.6); u.hp *= 8; u.xp = 3; u.elite = true; u.speed = .9; u.grow = (u.grow || 1) * 1.6;
   e.traverse(o => { if (!o.isMesh) return; o.material = o.material.clone(); o.material.emissive = ELITE_GOLD.clone(); o.material.emissiveIntensity = .55; });
   for (let i = 0; i < 6; i++) makeEnemy(_c.x + (Math.random() - .5) * 40, _c.y + (Math.random() - .5) * 15, _c.z + (Math.random() - .5) * 40, 'moth');
   elite = e; sfx('elite_spawn', e.position); const ang = Math.atan2(-(_c.x - player.position.x), -(_c.z - player.position.z)) - yaw, side = Math.sin(ang) > .3 ? '왼쪽' : Math.sin(ang) < -.3 ? '오른쪽' : Math.cos(ang) > 0 ? '정면' : '후방';
@@ -251,10 +252,10 @@ function refresh() {
   const st = stage(); maxHp = Math.round(maxHpForLevel(level) * (path === 'storm' ? 1.1 : 1)); hp = Math.min(hp, maxHp);
   $('#stage').textContent = STAGE_NAMES()[st - 1];
   $('#level').textContent = level < MAX_LEVEL ? 'LV. ' + level : rank ? `LV. 30 · 위계 ${ROMAN(rank)}` : 'LV. 30';
-  if (level < MAX_LEVEL) { const need = xpToNext(level); $('#xp').style.width = xp / need * 100 + '%'; $('#xptext').textContent = `성장 경험치 ${xp} / ${need}`; }
+  if (level < MAX_LEVEL) { const need = xpToNext(level), held = !!gateFor(level + 1, growth) && xp >= need; $('#xp').style.width = Math.min(1, xp / need) * 100 + '%'; $('#xptext').textContent = held ? '진화 시험 대기 — 시험을 통과하면 진화' : `성장 경험치 ${Math.floor(xp)} / ${need}${growth.rest > 0 ? ' · 휴식 숨결 ' + Math.round(growth.rest) : ''}`; }
   else { const need = rankXpToNext(rank); $('#xp').style.width = rankXp / need * 100 + '%'; $('#xptext').textContent = `황제 위계 경험치 ${rankXp} / ${need}`; }
   $('#hp').style.width = Math.max(0, hp / maxHp * 100) + '%';
-  $('#kills').textContent = '처치 ' + kills;
+  $('#kills').textContent = `처치 ${kills} · 발견 ${growth.discovered.length}/${SITES.length}`;
   $('#objective').textContent = level >= MAX_LEVEL ? '황제의 하늘 · 사냥하며 위계를 올리세요 (귀환 시 보상)' : st === 3 ? 'Lv.30 드래곤 엠페러로 진화하세요' : st === 2 ? 'Lv.20 3단계 진화까지 성장하세요' : 'Lv.10 진화의 갈림길까지 성장하세요';
   $('#return').hidden = level < MAX_LEVEL || over; $('#pause-return').hidden = level < MAX_LEVEL;
 }
@@ -296,7 +297,7 @@ $('#begin').onclick = start; $('#restart').onclick = () => location.reload();
 $('#return').onclick = () => finish('return'); $('#pause-return').onclick = () => finish('return');
 document.querySelectorAll('[data-path]').forEach(b => b.onclick = () => {
   if (over) return; sfx('ui_click');
-  markProgress(); path = b.dataset.path; for (const m of stageModels) if (m) setDragonPathVisual(m, path); document.body.classList.toggle('storm', path === 'storm');
+  path = b.dataset.path; markProgress(true); for (const m of stageModels) if (m) setDragonPathVisual(m, path); document.body.classList.toggle('storm', path === 'storm');
   player.userData.skin.color.set(pathColor(0xda5639, 0x477fbc)); player.userData.wing.color.set(pathColor(0xffb653, 0x8fd5ed));
   refresh(); hp = maxHp; $('#choice').hidden = true; paused = false; touch.setVisible(true); refresh();
   burst(player.position, pathColor(0xffa326, 0x63dcff), 100, 32, fxScale());
@@ -333,8 +334,23 @@ function killEnemy(e) {
     if (rank > before) { hp = Math.min(maxHp, hp + maxHp * .2); burst(player.position, 0xffdc88, 90, 40, fxScale()); banner(`황제 위계 ${ROMAN(rank)}`, `피해 +${Math.min(rank, 20) * 2}%`); }
     markProgress(); refresh(); return;
   }
+  gainXp(combatXp(growth, killExperience(level) * (e.userData.xp || 1), stage(), {budgetOff: growth.budgetOff}), 'combat');
+}
+// ---------- 모든 성장 XP의 입구 (전투·퀘스트·발견·제작·시험). 진화 시험 전에는 Lv9에서 대기(초과 XP 한 레벨분 보관) ----------
+let xpToast = 0;
+function gainXp(amount, source, label = '') {
+  if (!(amount > 0) || level >= MAX_LEVEL) return;
+  amount *= XP_TEST_MUL; growth.bySource[source] = (growth.bySource[source] || 0) + amount;
+  if (label) { const el = $('#xptoast'); el.textContent = `+${Math.round(amount)} 경험치 · ${label}`; el.classList.remove('on'); void el.offsetWidth; el.classList.add('on'); xpToast = 2.2; }
   const beforeLevel = level, beforeStage = stage();
-  ({level, xp} = addExperience({level, xp}, Math.round(killExperience(level) * (e.userData.xp || 1) * XP_TEST_MUL)));
+  let st = addExperience({level, xp}, amount);
+  const gate = gateFor(st.level, growth);
+  if (gate) {
+    const wasHeld = level === gate.level - 1 && xp >= xpToNext(level);
+    st = holdAtGate(st, growth, gate);
+    if (!wasHeld) banner('진화의 문턱', gnd.world.step >= 8 ? `${gate.name} — 금빛 고리를 통과하면 진화합니다` : '첫 임무를 마치면 비행 시험이 열립니다', 3);
+  }
+  level = st.level; xp = st.xp;
   if (level > beforeLevel) { refresh(); hp = Math.min(maxHp, hp + maxHp * .15); if (stage() === beforeStage) sfx('levelup'); }
   if (stage() > beforeStage) {
     if (stage() < 4) sfx('evolve'); ambStage = stage(); audio.startAmbience(ambStage);
@@ -345,6 +361,7 @@ function killEnemy(e) {
   markProgress();
   if (level >= 10 && !path) { paused = true; clearInput(); document.exitPointerLock?.(); touch.setVisible(false); $('#choice').hidden = false; }
   else if (level >= MAX_LEVEL && coronation < 0 && beforeLevel < MAX_LEVEL) startCoronation();
+  if (stage() > beforeStage) { markProgress(true); growth.stageAt[stage()] = Math.round(growth.playSec); console.info('[pace] 단계', stage(), '도달', Math.round(growth.playSec / 60), '분', JSON.stringify(growth.bySource)); }
 }
 
 // ---------- 진화 외형: 단계마다 날개 폭·용암 발광·후광이 달라짐 (승인된 모델 1종을 단계별로 변형) ----------
@@ -588,8 +605,11 @@ function loop() {
     if (!grounded) { const f = updateFlight(dt); boosting = f.boosting; fireBreath(dt, f.firing); updateEnemies(dt); if (!over) updateBoss(dt); if (!over) updateElite(dt); if (!over) updateBolts(dt); }
     else { player.rotation.x *= Math.exp(-6 * raw); player.rotation.y = yaw; flySpeed = 0; animIn.fwd = animIn.side = 0; animIn.up = animIn.down = animIn.boost = false; }
     gnd.update(dt, raw, keys, touch.state, camera); updateQuestHud();
-    if (progressDirty && (progressSaveT -= raw) <= 0) { progressSaveT = 2; if (gnd.saveDragon(progressSnapshot()) === true) progressDirty = false; }
+    tickPlay(growth, dt); if ((discoverT -= raw) <= 0) { discoverT = .4; checkDiscovery(); } updateTrial(dt);
+    if (xpToast > 0 && (xpToast -= raw) <= 0) $('#xptoast').classList.remove('on');
   }
+  // 성장 저장은 일시정지(혈통 선택 등) 중에도 진행
+  if (progressDirty && (progressSaveT -= raw) <= 0) { progressSaveT = 2; if (gnd.saveDragon(progressSnapshot()) === true) progressDirty = false; }
   if (bannerTimer > 0 && (bannerTimer -= raw) <= 0) $('#banner').classList.remove('on');
   updateParticles(raw);
   if (!(playing && !paused && !over)) { animIn.fwd = animIn.side = 0; animIn.up = animIn.down = animIn.boost = false; }
@@ -606,20 +626,66 @@ function loop() {
   renderer.render(scene, camera);
 }
 
-// ---------- 지상 시제품 (gnd.js): 착륙·폴리모프·채집·제작·수리·저장 ----------
+// ---------- 탐험·발견 (growth.SITES): 처음 가까이 날아가면 1회 XP ----------
+let discoverT = 0;
+function checkDiscovery() {
+  if (gnd.mode !== 'air') return;
+  for (const s of SITES) {
+    if (growth.discovered.includes(s.id)) continue;
+    if (Math.hypot(player.position.x - s.x, player.position.y - s.y, player.position.z - s.z) < s.r + 10 * scaleNow) {
+      growth.discovered.push(s.id); sfx('levelup'); banner('발견 · ' + s.name, `${growth.discovered.length} / ${SITES.length} 곳`, 2.2);
+      const a = oneTime(growth, 'disc_' + s.id, REWARDS.discovery * DISCOVERY_STAGE_MUL[stage() - 1]); if (a) gainXp(a, 'discovery', '발견'); markProgress(true); refresh();
+    }
+  }
+}
+// ---------- 진화 시험: 드레이크 비행 시험 (금빛 고리 8개, 100초) ----------
+const TRIAL = {rings: [], active: -1, time: 0, limit: 100, built: false};
+function buildTrialRings() {
+  const cx = -116.5, cz = 1410, R = 260, base = Math.max(terrain.heightAt(cx, cz), terrain.waterLevel);
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2, x = cx + Math.sin(a) * R, z = cz - Math.cos(a) * R;
+    const y = Math.max(terrain.heightAt(x, z), terrain.waterLevel) + 45 + 25 * Math.sin(i * 1.7);
+    const m = new T.Mesh(new T.TorusGeometry(11, .9, 10, 40), new T.MeshBasicMaterial({color: 0xffd27a, transparent: true, opacity: .25, blending: T.AdditiveBlending, depthWrite: false}));
+    m.position.set(x, Math.max(y, base + 40), z); m.lookAt(cx + Math.sin(a + .78) * R, m.position.y, cz - Math.cos(a + .78) * R); m.visible = false; scene.add(m); TRIAL.rings.push(m);
+  }
+  TRIAL.built = true;
+}
+function trialAvailable() { const g = gateFor(level + 1, growth); return !!g && g.trial === 'drake' && level === g.level - 1 && xp >= xpToNext(level) && gnd.world.step >= 8; }
+function updateTrial(dt) {
+  const on = trialAvailable() && gnd.mode === 'air';
+  if (on && !TRIAL.built) buildTrialRings();
+  for (const [i, r] of TRIAL.rings.entries()) { r.visible = on; r.material.opacity = i === TRIAL.active + 1 ? .95 : .18; r.rotation.z += dt * (i === TRIAL.active + 1 ? 1.5 : .3); }
+  if (!on) { TRIAL.active = -1; return; }
+  if (TRIAL.active >= 0) { TRIAL.time += dt; if (TRIAL.time > TRIAL.limit) { TRIAL.active = -1; banner('비행 시험 실패', '첫 번째 고리부터 다시 시작하세요', 2); } }
+  const next = TRIAL.rings[TRIAL.active + 1];
+  if (next && next.position.distanceTo(player.position) < 11 + 2.5 * scaleNow) {
+    TRIAL.active++; burst(next.position, 0xffd27a, 40, 25, 1); sfx('ui_click');
+    if (TRIAL.active === 0) { TRIAL.time = 0; banner('비행 시험 시작', `고리 8개 · ${TRIAL.limit}초`, 1.6); }
+    else if (TRIAL.active === TRIAL.rings.length - 1) {
+      growth.trials.drake = true; TRIAL.active = -1; for (const r of TRIAL.rings) r.visible = false;
+      const pend = growth.pending; growth.pending = 0; banner('비행 시험 통과', `${Math.round(TRIAL.time)}초 · 드레이크로 진화합니다`, 2.5);
+      gainXp(1 + pend, 'quest', '비행 시험 통과'); markProgress(true);
+    } else banner(`고리 ${TRIAL.active + 1} / 8`, `남은 시간 ${Math.max(0, Math.round(TRIAL.limit - TRIAL.time))}초`, .9);
+  }
+}
+
+// ---------- 지상 시제품 (ground.js): 착륙·폴리모프·채집·제작·수리·저장 ----------
 // ---------- 영구 성장 (사용자 확정 2026-11-20: 성장은 영구 저장, 새로 하려면 새 슬롯) ----------
 const SLOT = activeSlot(store), TEST_RUN = ['lv', 'xp', 'boss', 'elite'].some(k => params.has(k)); // 테스트 주소는 성장을 저장하지 않음
 let progressDirty = false, progressSaveT = 0;
-const progressSnapshot = () => ({level, xp, path, rank, rankXp, kills, lateKills, bossKills, savedAt: Date.now()});
-function markProgress() { if (!TEST_RUN) progressDirty = true; }
+let growth = emptyGrowth();
+const progressSnapshot = () => { growth.lastSeen = Date.now(); return {level, xp, path, rank, rankXp, kills, lateKills, bossKills, growth, savedAt: Date.now()}; };
+function markProgress(now = false) { if (TEST_RUN) return; progressDirty = true; if (now && gnd.saveDragon(progressSnapshot()) === true) progressDirty = false; } // now: 시험 통과·진화·혈통 선택 등 중요한 순간 즉시 저장
 function applySavedDragon(d) {
   if (!d || TEST_RUN) return;
   level = T.MathUtils.clamp(d.level | 0, 1, MAX_LEVEL); xp = Math.max(0, d.xp | 0);
   path = ['flame', 'storm'].includes(d.path) ? d.path : ''; rank = Math.max(0, d.rank | 0); rankXp = Math.max(0, d.rankXp | 0);
   kills = Math.max(0, d.kills | 0); lateKills = Math.max(0, d.lateKills | 0); bossKills = Math.max(0, d.bossKills | 0);
   hp = maxHpForLevel(level) * (path === 'storm' ? 1.1 : 1); scaleNow = stageScale(level); camDistNow = STAGE.camDist[stage() - 1];
+  growth = migrateGrowth(d.growth);
 }
 const gnd = createGround({scene, terrain, player, store, banner, burst, spark, sfx, slot: SLOT, loadModel,
+  reward: (key, source, amount, label) => { const a = oneTime(growth, key, amount); if (a) { gainXp(a, source, label); markProgress(true); } },
   shake: a => { shakeAmp = Math.max(shakeAmp, a); }, fx: () => fxScale(), scale: () => scaleNow, path: () => path, pathColor,
   getYaw: () => yaw, getPitch: () => pitch, setYaw: v => { yaw = v; pitch = 0; }, time: () => time,
   onLandStart: () => { // 착륙 시 주변 적·탄 정리 (임시: 안전 구역에는 전투 없음)
@@ -637,9 +703,10 @@ function groundKey(code) {
   return m !== 'air' && ['KeyQ', 'KeyR', 'KeyF'].includes(code); // 지상에서는 스킬·브레스 막음
 }
 let questKey = '';
-function updateQuestHud() { const t = gnd.objective(); if (t !== questKey) { questKey = t; $('#quest').textContent = t ? '임무 · ' + t : ''; $('#quest').hidden = !t; } }
+function updateQuestHud() { const t = trialAvailable() ? '비행 시험 · 풍향탑 공터 주변 금빛 고리 8개를 100초 안에 통과' : gateFor(level + 1, growth) && level === 9 && xp >= xpToNext(9) ? '진화 대기 · 첫 임무를 마치면 비행 시험이 열립니다' : gnd.objective(); if (t !== questKey) { questKey = t; $('#quest').textContent = t ? '임무 · ' + t : ''; $('#quest').hidden = !t; } }
 loadManifest().then(() => gnd.loadHero()).catch(e => console.warn('[hero]', e)); // 여성 폴리모프 모델
 applySavedDragon(gnd.world.dragon);
+{ const rest = TEST_RUN ? 0 : accrueRest(growth, Date.now(), level); if (rest > 0 && level < MAX_LEVEL) setTimeout(() => banner('휴식 숨결', `쉬는 동안 숨결이 모였습니다 — 다음 전투 경험치 2배 (${Math.round(rest)})`, 3.2), 600); }
 gnd.restore();
 // 시작 화면: 슬롯 목록 · 이어하기 · 새 용으로 시작
 const STAGE_SHORT = ['해츨링', '드레이크', '웜', '드래곤 엠페러'];
@@ -689,4 +756,4 @@ loadManifest().then(async () => {
 if (touch.isTouch) document.querySelector('.help')?.remove();
 // 디버그·테스트 훅 (읽기 전용 상태)
 window.__game = {camera, get hud() { return {level, xp, hp, maxHp, kills, path, paused, over, playing, yaw, pitch, coins, rank, rankXp, coronation, gliding, flySpeed, runTime, stage: stage(), invuln}; },
-  get player() { return player; }, anim, get enemies() { return enemies; }, get enemyBolts() { return enemyBolts; }, get boss() { return boss; }, spawnBoss, ground: gnd, skills, castSkill, get combo() { return combo; }, get ult() { return ult; }, fillUlt() { ult = 100; }, spawnElite, get elite() { return elite; }, terrain, tod, touch, start};
+  get player() { return player; }, anim, get enemies() { return enemies; }, get enemyBolts() { return enemyBolts; }, get boss() { return boss; }, spawnBoss, ground: gnd, get growth() { return growth; }, gainXp, skills, castSkill, get combo() { return combo; }, get ult() { return ult; }, fillUlt() { ult = 100; }, spawnElite, get elite() { return elite; }, terrain, tod, touch, start};

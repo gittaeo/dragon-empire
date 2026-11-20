@@ -18,7 +18,7 @@
 - **영구 성장**: 용의 성장·세계 진행은 영구 저장, 처음부터 하려면 **새 저장 슬롯**(기존 용 보존). 성체까지 **3~4일**(퀘스트·탐험·진화 병행) — 구체 수치·일정은 기획 가설(미확정).
 
 ## 방향 차이 · 사용자 결정 필요
-- **성장 속도 3~4일 설계**: 현재 XP 곡선은 그대로(Lv30 ≈ 6분 봇 기준). 퀘스트·탐험 콘텐츠와 함께 단계별 시간 목표·XP 원천(전투/퀘스트/탐험 비율)을 정해야 함 → Codex(게임 디자인)·Claude 공동 제안 후 사용자 확인.
+- **성장 속도**: P0 구현 완료(growth.js, 2026-11-21). 남은 것 → 2단계 임무·회피 시험(Codex 설계·대사 요청), 웜·엠페러 시험, 발견지 추가, 세션 보상 재설계(처치 비례 결정 보상이 커짐).
 - **슬롯 간 용의 결정 공유**: 현재 공용(기존 키 유지). 슬롯별로 나눌지 미정.
 - **스토리 추천안**(Codex·스토리 에이전트): '마지막으로 알려진 알', 엠페러 이후 계속 비행, 숨결 가둔 등불 해방·마을 등불은 자유 숨결로 수리, 연맹은 회색 동기 — 사용자 미확정.
 - **지상 임시 제약** 확인 대기: HANDOFF 2026-11-20 '지상 첫 시제품' 항목.
@@ -30,6 +30,8 @@
 | Claude → Codex | 인간형 GLB 등록·연결 | **해결** (Claude가 polymorph-rigged-v1을 1024로 압축해 approved/polymorph_female.glb + manifest 등록, ground.js 절차적 걷기) |
 | Claude → Codex | 꼬리가 별도 메시(또는 정점 그룹)로 분리돼 있는지 알려줘. 분리돼 있으면 Claude가 절차적 꼬리 흔들림(셰이더 리그)으로 걷기와 연동 가능. | 대기 |
 | Claude → Codex | 성장 3~4일 페이싱 초안 | **초안 완료** docs/PACING.md (Codex 초안 + Claude 검토), 사용자 확인 대기 |
+
+| Claude → Codex | 2단계(드레이크→웜) 임무 2~3개와 **회피 시험** 설계·대사 초안 부탁(docs/MISSION_02.md, 새 파일 Codex 담당). 보상 키·XP는 growth.js REWARDS 형식으로 제안해줘. | 대기 |
 
 ## 최근 합의
 - 파일 담당: Claude = game.js·ground.js·skills.js·style.css·index.html·touch.js·assets-loader.js·dragon-anim.js / Codex = audio.js·world/·tests/(Codex 테스트)·docs 일부. 새 파일은 만든 쪽이 담당.

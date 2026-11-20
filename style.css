@@ -241,3 +241,7 @@ body:has(#start:not([hidden])) header .brand{opacity:0}
 .title{font-size:clamp(40px,5.4vw,80px)}
 .overlay{align-items:flex-start;overflow-y:auto}
 .overlay>.panel{margin-block:auto}
+/* 성장 XP 획득 알림 (퀘스트·발견·제작·시험) */
+#xptoast{position:fixed;left:50%;top:34%;transform:translate(-50%,8px);opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;z-index:24;padding:6px 16px;border-radius:999px;background:rgba(10,11,18,.7);border:1px solid rgba(233,196,106,.5);font:700 13px var(--body);color:var(--gold-hi);text-shadow:0 0 10px rgba(255,201,77,.5)}
+#xptoast.on{opacity:1;transform:translate(-50%,0)}
+#xptoast{top:47%}
