@@ -6,7 +6,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 
 (async()=>{
- const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',args:['--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']});
+ const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',args:process.env.SWIFTSHADER?['--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-sandbox']:['--use-angle=d3d11','--enable-gpu','--ignore-gpu-blocklist','--no-sandbox']});
  try {
   for(const routeName of ['flame','storm']){
    const context=await browser.newContext({viewport:{width:1280,height:720}});
