@@ -1088,7 +1088,7 @@ diffuseColor.a = mix(0.35, 0.86, smoothstep(0.0, 0.3, wDepth)) + foam*0.4;`)
 			const e = recompose({ x, y: h - s * 0.3, z, rotY: treeR() * 6.28, ex: (treeR() - 0.5) * 0.4, ez: (treeR() - 0.5) * 0.4 }, s * (0.9 + 0.4 * treeR()), s * (0.6 + 0.3 * treeR()), s * (0.9 + 0.4 * treeR()));
 			e.c = [t, t, t * 0.97]; lists.granite.push(e);
 		}
-		// 절벽 kitbash: 절벽 기슭(위쪽 40m 가 급경사 30~70° 인데 발치는 완만한 곳), 18~34m, xz 비균일 0.8~1.4, 경사 아래로 향함
+		// 절벽 기슭의 암괴는 지형과 자연스럽게 섞이도록 작게 배치한다.
 		if (R.cliff) {
 			for (let i = 0; i < 60000 && lists.cliff.length < 300; i++) {
 				const x = (treeR() * 2 - 1) * (half - 80), z = (treeR() * 2 - 1) * (half - 80), h = heightAt(x, z);
@@ -1102,12 +1102,12 @@ diffuseColor.a = mix(0.35, 0.86, smoothstep(0.0, 0.3, wDepth)) + foam*0.4;`)
 				if (rise < 0.7 || rise > 2.75) continue; // 위쪽은 35~70°
 				const a = snowN(x, z, h);
 				if (a > 1.0) continue;
-				const s = lerp(18, 34, Math.pow(treeR(), 1.3));
+				const s = lerp(9, 18, Math.pow(treeR(), 1.3));
 				const rot = Math.atan2(-ux, -uz) + (treeR() - 0.5) * 0.5;
 				const t = 0.9 + 0.2 * treeR();
 				// 오르막 쪽으로 반쯤 파묻어 절벽에 붙은 암괴처럼
 				const px = x + ux * s * 0.25, pz = z + uz * s * 0.25;
-				const e = recompose({ x: px, y: h - s * 0.3, z: pz, rotY: rot, ex: (treeR() - 0.5) * 0.12, ez: (treeR() - 0.5) * 0.12 }, s * lerp(0.8, 1.4, treeR()), s * (0.6 + 0.35 * treeR()), s * lerp(0.8, 1.4, treeR()));
+				const e = recompose({ x: px, y: h - s * 0.45, z: pz, rotY: rot, ex: (treeR() - 0.5) * 0.12, ez: (treeR() - 0.5) * 0.12 }, s * lerp(0.8, 1.25, treeR()), s * (0.5 + 0.3 * treeR()), s * lerp(0.8, 1.25, treeR()));
 				e.c = [t * 1.12, t * 1.1, t * 1.08]; lists.cliff.push(e);
 			}
 		}
