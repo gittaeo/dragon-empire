@@ -29,7 +29,7 @@ export const rankDamageBonus = rank => 1 + 0.02 * Math.min(rank, 20);
 
 // 단계별 비행·전투 표
 export const STAGE = {
-  speed: [32, 38, 44, 52], boost: [65, 80, 95, 120], camDist: [22, 30, 42, 58],
+  speed: [32, 38, 44, 52], boost: [65, 80, 95, 120], camDist: [22, 27, 34, 44],
   enemyHp: [30, 70, 120, 150], enemyCap: [12, 16, 22, 34], spawnRate: [0.5, 0.6, 0.75, 1.8],
   shooters: [3, 4, 5, 6], shotDamagePct: [0.05, 0.07, 0.08, 0.05], contactDamagePct: [0.08, 0.12, 0.12, 0.06],
 };

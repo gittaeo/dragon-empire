@@ -48,6 +48,7 @@ const S = terrain.spawnPoint; player.position.copy(S); player.rotation.order = '
 const anim = new FlightAnimator(), animIn = {fwd: 0, side: 0, up: false, down: false, boost: false, yaw: 0};
 // 테스트 전용 디버그 카메라: ?animcam=side|front|back|top|tq|tqb (&animdist=거리)
 const params = new URLSearchParams(location.search);
+const XP_TEST_MUL = Math.min(20, Math.max(1, +params.get('xp') || 1)); // 테스트 전용: ?xp=8 이면 성장 경험치 8배(진화 확인용)
 if (params.get('live')) import('./live-reload.js'); // 개발용: 옆 창에서 저장 즉시 반영
 const animCam = params.get('animcam'), animDist = +(params.get('animdist') || 16), camOff = new T.Vector3();
 
@@ -320,7 +321,7 @@ function killEnemy(e) {
     refresh(); return;
   }
   const beforeLevel = level, beforeStage = stage();
-  ({level, xp} = addExperience({level, xp}, Math.round(killExperience(level) * (e.userData.xp || 1))));
+  ({level, xp} = addExperience({level, xp}, Math.round(killExperience(level) * (e.userData.xp || 1) * XP_TEST_MUL)));
   if (level > beforeLevel) { refresh(); hp = Math.min(maxHp, hp + maxHp * .15); }
   if (stage() > beforeStage) {
     refresh(); hp = maxHp; invuln = 2; burst(player.position, 0xffdc88, 100, 35, fxScale());
@@ -329,6 +330,29 @@ function killEnemy(e) {
   refresh();
   if (level >= 10 && !path) { paused = true; clearInput(); document.exitPointerLock?.(); touch.setVisible(false); $('#choice').hidden = false; }
   else if (level >= MAX_LEVEL && coronation < 0 && beforeLevel < MAX_LEVEL) startCoronation();
+}
+
+// ---------- 진화 외형: 단계마다 날개 폭·용암 발광·후광이 달라짐 (승인된 모델 1종을 단계별로 변형) ----------
+const STAGE_LOOK = {wing: [1, 1.12, 1.24, 1.38], glow: [1, 1.6, 2.3, 3.2], tail: [1, 1.05, 1.12, 1.2]};
+const halo = new T.Mesh(new T.TorusGeometry(1, .06, 8, 48), new T.MeshBasicMaterial({color: 0xffc85a, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false}));
+const haloInner = new T.Mesh(new T.RingGeometry(.55, 1, 48), new T.MeshBasicMaterial({color: 0xffa23a, transparent: true, opacity: 0, side: T.DoubleSide, blending: T.AdditiveBlending, depthWrite: false}));
+halo.add(haloInner); halo.position.set(0, 2.6, -1.9); halo.rotation.x = Math.PI / 2; player.add(halo); // 머리 위에 눕힌 왕관형 후광(조준선을 가리지 않게)
+let lookStage = 0, lookT = 1;
+function updateStageLook(raw) {
+  const st = stage(), mdl = player.userData.model;
+  if (st !== lookStage) { lookStage = st; lookT = 0; }
+  lookT = Math.min(1, lookT + raw * .8);
+  const k = i => STAGE_LOOK[i][st - 1];
+  // 날개 폭(X)과 몸 길이(Z)를 단계별로 키움 → 같은 모델이라도 실루엣이 달라짐
+  const sx = k('wing'), sz = k('tail');
+  if (mdl) { mdl.scale.x += (mdl.userData.baseScale * sx - mdl.scale.x) * Math.min(1, raw * 3); mdl.scale.z += (mdl.userData.baseScale * sz - mdl.scale.z) * Math.min(1, raw * 3); }
+  if (mdl && !mdl.userData.glowMats) { mdl.userData.glowMats = []; mdl.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) if (m.emissive) mdl.userData.glowMats.push(m); }); }
+  for (const m of mdl?.userData.glowMats || []) { const base = m.userData.dragonOriginal?.emissiveIntensity ?? 1; const want = Math.max(base, path ? .55 : base) * k('glow') * (1 + .15 * Math.sin(time * 3)); m.emissiveIntensity += (want - m.emissiveIntensity) * Math.min(1, raw * 2); }
+  // 엠페러: 머리 뒤 금빛 후광(콘셉트 아트의 헤일로)
+  const on = st >= 4 ? 1 : 0; halo.material.opacity += (on * .9 - halo.material.opacity) * Math.min(1, raw * 2); haloInner.material.opacity = halo.material.opacity * .18;
+  halo.visible = halo.material.opacity > .01; halo.rotation.z += raw * .6; halo.scale.setScalar(.75 + .05 * Math.sin(time * 2));
+  halo.material.color.set(path === 'storm' ? 0x9ff0ff : 0xffc85a); haloInner.material.color.set(path === 'storm' ? 0x63dcff : 0xffa23a);
+  if (st >= 4 && Math.random() < .35) spark(tmp.copy(halo.position).applyMatrix4(player.matrixWorld), path === 'storm' ? 0xbff6ff : 0xffd27a, _pv.set((Math.random() - .5) * 6, 4 + Math.random() * 6, (Math.random() - .5) * 6), 2.5 * scaleNow, .8);
 }
 
 // ---------- 루프 (임시 벡터 재사용) ----------
@@ -543,6 +567,7 @@ function loop() {
   updateParticles(raw);
   if (!(playing && !paused && !over)) { animIn.fwd = animIn.side = 0; animIn.up = animIn.down = animIn.boost = false; }
   const targetScale = stageScale(level); scaleNow += (targetScale - scaleNow) * (1 - Math.exp(-3 * raw)); player.scale.setScalar(scaleNow);
+  updateStageLook(raw);
   animIn.yaw = yaw; anim.update(raw, animIn); player.rotation.z = anim.bankAngle;
   const mdl = player.userData.model;
   if (mdl && mdl.userData.rig) { anim.applyUniforms(mdl.userData.rig); anim.applyPose(mdl, mdl.userData.unit); }
@@ -559,7 +584,7 @@ for (let i = 0; i < 2; i++) spawnGroup(5);
 document.body.classList.toggle('storm', path === 'storm');
 refresh(); loop();
 loadManifest().then(() => loadModel('dragon_hatchling', {length: 9, rig: true})).then(m => {
-  if (!m) return; player.children.forEach(c => c.visible = false); player.add(m); player.userData.model = m; setDragonPathVisual(m, path);
+  if (!m) return; player.children.forEach(c => { if (c !== halo) c.visible = false; }); m.userData.baseScale = m.scale.x; player.add(m); player.userData.model = m; setDragonPathVisual(m, path);
 }).catch(e => console.warn('[assets]', e));
 // 승인된 적·보스 GLB (manifest에 없으면 절차적 도형 유지). 텍스처를 약하게 자체발광시켜 등불이 보이게 함
 function glow(root, k) { root.traverse(o => { if (!o.isMesh || !o.material?.map) return; o.material.emissive = new T.Color(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = k; o.material.needsUpdate = true; }); }
