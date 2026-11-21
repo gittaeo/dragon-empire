@@ -493,8 +493,10 @@ function fireBreath(dt, firing) {
 }
 
 // 적 피해 공통 처리. 처치되면 true
+let autoHit = false; // 세 밤: 망루·병사 피해 표시(용 기여 처치 판정용)
 function damageEnemy(e, dmg, color, quiet = false) {
   if (!e.parent) return false;
+  if (!autoHit) e.userData.dragonHit = true;
   e.userData.hp -= dmg;
   if (!quiet) { burst(e.position, color || 0xffa54c, 10, 20, Math.min(fxScale(), 1.5)); sfx('hit', e.position, .6); }
   if (e.userData.hp <= 0) { killEnemy(e); return true; }
@@ -758,7 +760,7 @@ if (NIGHTS) {
   tod.setSpeed(0); eliteCd = Infinity; bossCountdown = Infinity; if (!path) path = 'flame'; for (const k in growth.trials) growth.trials[k] = true;
   document.body.classList.add('nights');
   nights = createNights({focus: (pos, pitch = .15, t = 2.6) => { camFocus = {pos: pos.clone(), pitch, t}; }, seed: parseSeed(params.get('seed')), scene, gnd, tod, camera, raiders: () => enemies.filter(e => e.userData.raid || e.userData.assault), stopSfx: name => audio.stop?.(name), bossPos: () => boss?.position, banner, sfx, burst, makeEnemy, removeEnemy, groundAt: ground, shake: a => { shakeAmp = Math.max(shakeAmp, a); },
-    nightEnemies: () => enemies.filter(e => e.userData.nightWave).length, hitEnemy: (e, n) => damageEnemy(e, n, 0x9fe8ff),
+    nightEnemies: () => enemies.filter(e => e.userData.nightWave).length, hitEnemy: (e, n) => { autoHit = true; try { return damageEnemy(e, n, 0x9fe8ff); } finally { autoHit = false; } },
     morning: n => { level = n === 1 ? 10 : 20; xp = 0; refresh(); hp = maxHp; invuln = 2; burst(player.position, 0xffdc88, 120, 40, fxScale()); sfx('evolve'); ambStage = stage(); audio.startAmbience(ambStage);
       banner(STAGE_NAMES()[stage() - 1] + '(으)로 진화', '밤을 버틴 숨결이 몸을 키웁니다', 3); refresh(); },
     end: (won, why, S) => endNights(won, why, S),
