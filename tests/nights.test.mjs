@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { forecast, angleDiff, DIRS, NIGHT_PLAN, RECIPES_N, DAY_ITEMS, NIGHTS_TOTAL, DAY_SEC, TOWER_MAX, RAID_DAMAGE, SHIELD_CHARGES, SHIELD_R, buildWaves, parseSeed, rngFor, WAVES_VERSION, RUSH_SPEED, createAssault, assaultStep, assaultResolve, TOWER_ASSAULT } from '../nights.js';
+import { forecast, angleDiff, DIRS, NIGHT_PLAN, RECIPES_N, DAY_ITEMS, NIGHTS_TOTAL, DAY_SEC, TOWER_START, TOWER_MAX, RAID_DAMAGE, SHIELD_CHARGES, SHIELD_R, buildWaves, parseSeed, rngFor, WAVES_VERSION, RUSH_SPEED, createAssault, assaultStep, assaultResolve, TOWER_ASSAULT } from '../nights.js';
 
 test('forecast covers all twelve ordered pairs of distinct directions', () => {
   const pairs = new Set();
@@ -45,6 +45,12 @@ test('preparation costs fit the materials available per day', () => {
   assert.equal(NIGHTS_TOTAL, 3);
   assert.ok(DAY_SEC > 0 && TOWER_MAX > RAID_DAMAGE && RAID_DAMAGE > 0);
   assert.ok(SHIELD_CHARGES > 0 && SHIELD_R > 0);
+});
+
+test('first day starts with a damaged tower and enough materials to repair', () => {
+  assert.ok(TOWER_START >= 0 && TOWER_START < TOWER_MAX);
+  const available = Object.fromEntries(DAY_ITEMS);
+  for (const [item, count] of Object.entries(RECIPES_N.repair.items)) assert.ok((available[item] || 0) >= count, `${item} first-day repair`);
 });
 
 test('parseSeed accepts only unsigned 32-bit decimal strings', () => {
