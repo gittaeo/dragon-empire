@@ -44,12 +44,28 @@ export function buildWaves({night, runSeed, dirs}) {
   }
   return {version: WAVES_VERSION, seed: runSeed >>> 0, pattern, waves};
 }
+// ── 루세르나의 풍향탑 공격: 등불 낙하 (docs/NIGHTS_BOSS.md, Codex 설계 · 수치는 가설) ──
+export const TOWER_ASSAULT = {initialDelay: 10, cooldown: 20, telegraph: 4, travel: 5, damage: 12, projectileHp: 300, maxActive: 1, shieldPolicy: 'no-block'};
+// 순수 상태 머신: idle → telegraph → travel → (resolve) → idle. 쿨다운은 해결 시점부터.
+export function createAssault(cfg = TOWER_ASSAULT) { return {cfg, state: 'idle', t: cfg.initialDelay, id: 0, results: {}}; }
+export function assaultStep(A, dt) {
+  const ev = [];
+  if (A.state === 'idle') { A.t -= dt; if (A.t <= 0) { A.state = 'telegraph'; A.id++; A.t = A.cfg.telegraph; ev.push({kind: 'tower_assault', id: A.id, phase: 'telegraph', remaining: A.t}); } }
+  else if (A.state === 'telegraph') { A.t -= dt; if (A.t <= 0) { A.state = 'travel'; A.t = A.cfg.travel; ev.push({kind: 'tower_assault', id: A.id, phase: 'travel', remaining: A.t}); } }
+  return ev;
+}
+// id별 결과는 한 번만 (중복 피해 금지). 반환: 이벤트 또는 null
+export function assaultResolve(A, id, result) {
+  if (A.state !== 'travel' || id !== A.id || A.results[id]) return null;
+  A.results[id] = result; A.state = 'idle'; A.t = A.cfg.cooldown;
+  return {kind: 'tower_assault', id, phase: 'resolved', result};
+}
 export function angleDiff(a, b) { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return Math.abs(d); }
 
 export function createNights(ctx) {
   const {scene, gnd, tod} = ctx, towerPos = gnd.positions.tower.clone(), v = new T.Vector3();
   const runSeed = (ctx.seed ?? Math.floor(Math.random() * 0x100000000)) >>> 0;
-  const S = {phase: 'day', night: 1, t: DAY_SEC, towerHp: TOWER_MAX, dirs: forecast(rngFor(runSeed, 1, 'forecast')), shields: {}, waveI: 0, waveT: 0, raiders: 0, over: false, crafted: 0, best: null, seed: runSeed, plan: null};
+  const S = {phase: 'day', night: 1, t: DAY_SEC, towerHp: TOWER_MAX, dirs: forecast(rngFor(runSeed, 1, 'forecast')), shields: {}, waveI: 0, waveT: 0, raiders: 0, over: false, crafted: 0, best: null, seed: runSeed, plan: null, assault: null};
   console.info(`[세 밤] seed=${runSeed} waves v${WAVES_VERSION}`);
   // 탑 HP 바
   const bar = document.createElement('div'); bar.id = 'towerbar'; bar.innerHTML = '<b>풍향탑</b><i><span></span></i><small></small>'; document.getElementById('hud').appendChild(bar);
@@ -65,16 +81,35 @@ export function createNights(ctx) {
   const pv = new T.Vector3();
   function updateMarks() {
     const cam = ctx.camera, list = S.phase === 'night' || S.phase === 'boss' ? ctx.raiders() : [];
-    list.sort((a, b) => a.position.distanceToSquared(towerPos) - b.position.distanceToSquared(towerPos));
+        list.sort((a, b) => (b.userData.assault ? 1 : 0) - (a.userData.assault ? 1 : 0) || a.position.distanceToSquared(towerPos) - b.position.distanceToSquared(towerPos));
     const W = innerWidth, H = innerHeight, m = 64;
     pool.forEach((el, i) => {
       const e = list[i]; if (!e) { el.style.display = 'none'; return; }
       pv.copy(e.position).project(cam); const behind = pv.z > 1;
       let x = (pv.x * .5 + .5) * W, y = (-pv.y * .5 + .5) * H; const on = !behind && x > m && x < W - m && y > m && y < H - m;
-      if (!on) { let dx = x - W / 2, dy = y - H / 2; if (behind) { dx = -dx; dy = -dy; } const k = Math.min((W / 2 - m) / Math.abs(dx || 1e-3), (H / 2 - m) / Math.abs(dy || 1e-3)); x = W / 2 + dx * k; y = H / 2 + dy * k; el.style.transform = `translate(${x}px,${y}px) rotate(${Math.atan2(dy, dx)}rad)`; el.className = 'edge'; }
-      else { el.style.transform = `translate(${x}px,${y}px)`; el.className = 'on'; }
+      if (!on) { let dx = x - W / 2, dy = y - H / 2; if (behind) { dx = -dx; dy = -dy; } const k = Math.min((W / 2 - m) / Math.abs(dx || 1e-3), (H / 2 - m) / Math.abs(dy || 1e-3)); x = W / 2 + dx * k; y = H / 2 + dy * k; el.style.transform = `translate(${x}px,${y}px) rotate(${Math.atan2(dy, dx)}rad)`; el.className = 'edge' + (e.userData.assault ? ' as' : ''); }
+      else { el.style.transform = `translate(${x}px,${y}px)`; el.className = 'on' + (e.userData.assault ? ' as' : ''); }
       el.style.display = 'block';
     });
+  }
+  const warnRing = new T.Mesh(new T.RingGeometry(26, 32, 48), new T.MeshBasicMaterial({color: 0xff8a1a, transparent: true, opacity: .7, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending}));
+  warnRing.rotation.x = -Math.PI / 2; warnRing.visible = false; scene.add(warnRing);
+  const assaultOrbMat = new T.MeshBasicMaterial({color: 0xff9a1a, transparent: true, opacity: .95, blending: T.AdditiveBlending, depthWrite: false});
+  const towerTop = () => towerPos.clone().add(new T.Vector3(0, 14, 0));
+  function onAssaultEvent(ev) {
+    if (!ev) return;
+    if (ev.phase === 'telegraph') { warnRing.position.set(towerPos.x, ctx.groundAt(towerPos.x, towerPos.z) + 1.5, towerPos.z); warnRing.visible = true; ctx.banner('루세르나가 풍향탑을 노린다', '곧 등불이 떨어진다 — 날아오는 주황 등불을 요격하세요', 2.2); ctx.sfx?.('boss_roar'); }
+    else if (ev.phase === 'travel') {
+      const bp = ctx.bossPos?.(); if (!bp) { onAssaultEvent(assaultResolve(S.assault, ev.id, 'cancelled')); return; }
+      const e = ctx.makeEnemy(bp.x, bp.y - 6, bp.z, 'moth'); e.scale.multiplyScalar(1.6);
+      e.userData.hp = e.userData.maxHp = S.assault.cfg.projectileHp; e.userData.nightWave = true;
+      e.userData.assault = {id: ev.id, t: 0, start: e.position.clone()};
+      const orb = new T.Mesh(raidOrbGeo, assaultOrbMat); orb.scale.setScalar(2.2 / Math.max(.5, e.scale.y)); e.add(orb);
+    }
+    else if (ev.phase === 'resolved') {
+      warnRing.visible = false;
+      if (ev.result === 'intercepted') ctx.banner('요격!', '풍향탑을 지켰다', 1.2);
+    }
   }
   // 방어막 표시(방향별 반구 조각)
   const shieldMesh = {};
@@ -119,7 +154,15 @@ export function createNights(ctx) {
   }
   // game.js updateEnemies에서 호출: 습격자 이동·방어막·탑 피해. true면 일반 AI 건너뜀
   function raidStep(e, dt) {
-    const u = e.userData, r = u.raid; if (!r) return false;
+    const u = e.userData;
+    if (u.assault) {
+      const a = u.assault, cfg = S.assault.cfg; a.t += dt; const k = Math.min(1, a.t / cfg.travel);
+      e.position.lerpVectors(a.start, towerTop(), k); e.lookAt(towerPos); e.rotateY(Math.PI);
+      if (k >= 1) { const ev = assaultResolve(S.assault, a.id, 'impact'); ctx.removeEnemy(e);
+        if (ev) { S.towerHp -= cfg.damage; setBar(); ctx.burst(towerTop(), 0xff8a1a, 80, 30, 1.8); ctx.shake(.8); ctx.sfx?.('player_hurt', towerPos); onAssaultEvent(ev); if (S.towerHp <= 0) lose('루세르나의 등불이 풍향탑을 무너뜨렸습니다'); } }
+      return true;
+    }
+    const r = u.raid; if (!r) return false;
     const to = v.copy(towerPos).add(new T.Vector3(0, 10, 0)).sub(e.position), d = to.length(); to.divideScalar(d || 1);
     e.position.addScaledVector(to, r.speed * dt); e.position.y = Math.max(e.position.y, ctx.groundAt(e.position.x, e.position.z) + 8);
     e.lookAt(towerPos); e.rotateY(Math.PI);
@@ -131,9 +174,9 @@ export function createNights(ctx) {
   function startFinale() {
     S.phase = 'crown'; tod.setHour(23.5); ctx.clearNightEnemies(); ctx.crown(); // 엠페러 진화 + 기존 대관식 연출
   }
-  function onKill(e) { if (e.userData.raid) S.raiders--; }
-  function lose(why) { if (S.over) return; S.over = true; ctx.end(false, why, S); }
-  function win() { if (S.over) return; S.over = true; ctx.end(true, `${NIGHTS_TOTAL}번째 밤까지 풍향탑을 지켰습니다`, S); }
+  function onKill(e) { if (e.userData.raid) S.raiders--; if (e.userData.assault && S.assault) onAssaultEvent(assaultResolve(S.assault, e.userData.assault.id, 'intercepted')); }
+  function lose(why) { if (S.over) return; S.over = true; warnRing.visible = false; ctx.end(false, why, S); }
+  function win() { if (S.over) return; S.over = true; warnRing.visible = false; ctx.end(true, `${NIGHTS_TOTAL}번째 밤까지 풍향탑을 지켰습니다`, S); }
 
   // 작업대·풍향탑 상호작용 (ground.js onInteract 훅)
   function onInteract(kind) {
@@ -186,8 +229,12 @@ export function createNights(ctx) {
       }
     } else if (S.phase === 'morning') { S.t -= dt; if (S.t <= 0) { S.phase = 'await'; ctx.banner('아침', '공터에 착륙해 인간형으로 낮 준비를 하세요 (금빛 기둥)', 3); } }
     else if (S.phase === 'await') { if (gnd.mode === 'human') startDay(); }
-    else if (S.phase === 'crown') { if (!ctx.coronationActive()) { S.phase = 'boss'; S.bossSpawned = true; ctx.spawnFinaleBoss(FINALE.bossHp); } }
-    else if (S.phase === 'boss') { if (S.bossSpawned && !ctx.bossAlive()) win(); }
+    else if (S.phase === 'crown') { if (!ctx.coronationActive()) { S.phase = 'boss'; S.bossSpawned = true; ctx.spawnFinaleBoss(FINALE.bossHp); S.assault = createAssault(); } }
+    else if (S.phase === 'boss') {
+      if (S.bossSpawned && !ctx.bossAlive()) { warnRing.visible = false; return win(); }
+      if (!ctx.coronationActive()) for (const ev of assaultStep(S.assault, dt)) onAssaultEvent(ev);
+      if (warnRing.visible) { const p = 1 + Math.sin(performance.now() / 120) * .06; warnRing.scale.setScalar(p); }
+    }
   }
   function objective() {
     const ds = S.dirs.map(d => d.name).join('·');
@@ -196,10 +243,12 @@ export function createNights(ctx) {
     if (S.phase === 'night') { const n = S.plan ? S.plan.waves.length : NIGHT_PLAN(S.night).waves; return `${S.night}번째 밤 · 습격 ${Math.min(S.waveI, n)}/${n} · 남은 적 ${ctx.nightEnemies()} — 탑으로 오는 등불을 막으세요`; }
     if (S.phase === 'morning' || S.phase === 'await') return '아침 · 금빛 기둥(공터)에 착륙해 변신';
     if (S.phase === 'crown') return '드래곤 엠페러 대관 — 하늘이 응답한다';
-    if (S.phase === 'boss') return '등불의 여왕 루세르나를 쓰러뜨리세요 · 풍향탑을 지키며';
+    if (S.phase === 'boss') { const A = S.assault, w = A && A.state === 'telegraph' ? ` · ⚠ 탑 공격 ${Math.ceil(A.t)}초` : A && A.state === 'travel' ? ' · ⚠ 주황 등불을 요격!' : '';
+      return '등불의 여왕 루세르나를 쓰러뜨리세요 · 풍향탑을 지키며' + w; }
     return '';
   }
   setBar(); startDay();
   const canLand = () => !(S.phase === 'night' || S.phase === 'dusk' || S.phase === 'crown' || S.phase === 'boss');
-  return {update, raidStep, canLand, onKill, onInteract, promptFor, objective, get state() { return S; }, towerPos, debug: {startNight, win, lose, startFinale}};
+  const bossQuiet = () => S.phase === 'boss' && !!S.assault && S.assault.state === 'telegraph'; // 예고 중엔 새 탄막·소환 금지
+  return {update, raidStep, canLand, bossQuiet, onKill, onInteract, promptFor, objective, get state() { return S; }, towerPos, debug: {startNight, win, lose, startFinale}};
 }

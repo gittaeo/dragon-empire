@@ -287,3 +287,5 @@ body:not(.nights) #raidmarks{display:none}
   body.nights .help{display:none}
 }
 body:has(#start:not([hidden])) #raidmarks,body:has(#choice:not([hidden])) #raidmarks,body:has(#result:not([hidden])) #raidmarks{display:none}
+#raidmarks i.on.as{border-color:#ffa31a;box-shadow:0 0 14px #ffa31a;width:26px;height:26px;margin:-13px 0 0 -13px}
+#raidmarks i.edge.as{border-left-color:#ffa31a;filter:drop-shadow(0 0 8px #ffa31a)}
