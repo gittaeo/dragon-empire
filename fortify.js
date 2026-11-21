@@ -47,7 +47,7 @@ export function createFortify({scene, groundAt, towerPos, radius, segments, burs
       add(start + RISE + STAKES_PER_SEG * .04, t => {
         seg.stakes.forEach((st, i) => { const k = Math.max(0, Math.min(1, (t - start - i * .04) / RISE)); st.position.y = st.userData.y0 - (1 - ease(k)) * (STAKE_H * st.scale.y + 1.5); });
         for (const r of seg.rails || []) { const k = Math.max(0, Math.min(1, (t - start - STAKES_PER_SEG * .04) / RISE)); r.visible = k > 0; r.position.y = (r.userData.from.position.y + r.userData.to.position.y) / 2 + r.userData.ry * k; }
-      }, () => { const c = seg.stakes[STAKES_PER_SEG >> 1].position; burst?.(new T.Vector3(c.x, c.y + .5, c.z), 0xb89366, 14, 8, .5); if (s % 2 === 0) sfx?.('build_rise', c); });
+      }, () => { const c = seg.stakes[STAKES_PER_SEG >> 1].position; burst?.(new T.Vector3(c.x, c.y + .5, c.z), 0xb89366, 14, 8, .5); if (s === 0) sfx?.('build_rise', c); });
     }
     walls[dir.id] = {group, segs};
   }
@@ -96,7 +96,7 @@ export function createFortify({scene, groundAt, towerPos, radius, segments, burs
     add(dur + 1.1, t => {
       g.scale.y = t < .5 ? Math.max(.01, ease(t / .5)) : t > dur + .5 ? Math.max(.01, 1 - ease((t - dur - .5) / .6)) : 1;
       if (t > nextHit && t < dur + .3) { nextHit = t + .35 + Math.random() * .2; const p = top().add(new T.Vector3((Math.random() - .5) * 3, -2 - Math.random() * 5, (Math.random() - .5) * 3));
-        burst?.(p, 0xffd27a, 10, 6, .25); if (hits++ % 2 === 0) sfx?.('hammer', p); }
+        burst?.(p, 0xffd27a, 10, 6, .25); if (hits++ === 0) sfx?.('hammer', p); }
     }, () => { scene.remove(g); if (scaffold === g) scaffold = null; burst?.(top(), 0xffe6a0, 30, 10, .6); });
   }
 

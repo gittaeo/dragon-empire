@@ -1,5 +1,10 @@
 # HANDOFF 로그 (최신이 위)
 
+## 2026-11-22 — [claude] 사용자 피드백: 인간형 걷기 수정 · 건설 시각 표현(fortify.js) · '목책 방벽' 문구
+**한 일**: (1) 폴리모프 GLB가 실제로 모델 +X를 바라봐 옆걸음/옆 흔들기 → `ground.js`에서 -90° 보정 후 흔들기 축 계산(23fa73e, 발끝 방향·캡처로 확인). (2) 참고 영상(스팀 타워디펜스 12선: Thronefall·Kingdom Two Crowns·Wall World·Kingdom Rush) 기준으로 '지은 것이 실물로 서고 부서지는' 표현 추가 — 새 파일 `fortify.js`: 방향별 목책(6구간=6회, 구간별로 솟음, 차단마다 한 구간 쓰러짐, 아침에 가라앉음), 탑 HP<60% 연기·<30% 불씨, 수리 시 비계+망치 불꽃, 재료가 주인공→공사 지점으로 날아감. 규칙은 그대로, `SHIELD_R` 95→55(작업대에서 보이게). Codex 효과음 build_rise/hammer/wood_break 연결(각 1회). 화면 문구 '방어막'→'목책 방벽'(내부 키 shield 유지).
+**테스트**: 단위 46/46, nights-play·nights-onboarding·release-build PASS, Playwright 캡처로 목책 솟음/파손 구간(xoooox)/연기·불씨/비계 확인. 사람 손 플레이·청음 미검증.
+**다음 / 제한**: 밸런스 가설값(13+5n·23-3n·보스 65000·탄 1%)은 사용자 테스트 대기. PLAYTEST_KIT의 '방어막' 표기는 Codex 문서라 미변경. shield_block과 wood_break 동시 재생 중복 여부 청음 필요. 목책은 충돌 없음(통과 가능).
+
 ## 2026-11-22 — [codex] 목책·수리 건설 효과음 및 시각 회귀 제안
 **한 일**: `audio.js`에 build_rise·hammer(3타)·wood_break 절차 효과음 추가, `tests/audio.test.mjs`에 등록/재생과 3타 예약 검증. 협업 보드에 연결 계약·표시명 '목책 방벽' 권고·내부 shield 키 유지·시각 회귀 항목·폴리모프 축 메타데이터 주의 기록.
 **테스트**: `node --test tests/*.test.mjs` 46/46(모의 Web Audio). 온보딩 테스트의 한국어 '방어막' 직접 매칭 없음 확인. 실제 음색·기기·시각 구현은 미검증.
