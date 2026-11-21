@@ -11,6 +11,8 @@ export const DIRS = [{id: 'n', name: '북쪽', a: 0}, {id: 'e', name: '동쪽', 
 export const NIGHT_PLAN = n => ({waves: 3 + n, size: 4 + n, interval: 22 - 2 * n, speed: 15 + 3 * n, hunters: n});
 // 하루 재료: 수리(가지2·돌1)와 방어막(가지1·돌2·파편1)을 동시에 만들 수 없게 → 택일 (Codex 리뷰). 남은 재료는 다음 날로 이월
 export const DAY_ITEMS = [['branch', 2], ['stone', 2], ['shard', 1]];
+// 셋째 밤 피날레 (NIGHTS_WEEK2.md P0): 웨이브 정리 → 엠페러 진화·대관식 → 루세르나(세 밤 전용 HP) → 격파 시 승리
+export const FINALE = {bossHp: 15000}; // 완벽 조준 자동 테스트 9000 → 7초라 상향, 사람 손 플레이로 조정
 export const DAY_SEC = 60, TOWER_MAX = 100, RAID_DAMAGE = 8, SHIELD_CHARGES = 6, SHIELD_R = 95;
 export const RECIPES_N = {
   repair: {name: '탑 수리', items: {branch: 2, stone: 1}, desc: '풍향탑 +30'},
@@ -73,6 +75,9 @@ export function createNights(ctx) {
     if (d < 22) { S.towerHp -= RAID_DAMAGE; setBar(); ctx.burst(e.position, 0xff6a2a, 50, 25, 1.4); ctx.shake(.5); ctx.sfx?.('player_hurt', e.position); ctx.removeEnemy(e); S.raiders--; if (S.towerHp <= 0) lose('풍향탑이 무너졌습니다'); return true; }
     return true;
   }
+  function startFinale() {
+    S.phase = 'crown'; tod.setHour(23.5); ctx.clearNightEnemies(); ctx.crown(); // 엠페러 진화 + 기존 대관식 연출
+  }
   function onKill(e) { if (e.userData.raid) S.raiders--; }
   function lose(why) { if (S.over) return; S.over = true; ctx.end(false, why, S); }
   function win() { if (S.over) return; S.over = true; ctx.end(true, `${NIGHTS_TOTAL}번째 밤까지 풍향탑을 지켰습니다`, S); }
@@ -121,11 +126,13 @@ export function createNights(ctx) {
       if (S.waveI < plan.waves) { S.waveT -= dt; if (S.waveT <= 0) { spawnWave(); S.waveT = plan.interval; } }
       else if (ctx.nightEnemies() === 0) { // 밤 끝 → 아침
         for (const k in shieldMesh) scene.remove(shieldMesh[k]); S.shields = {};
-        if (S.night >= NIGHTS_TOTAL) return win();
+        if (S.night >= NIGHTS_TOTAL) { startFinale(); return; }
         S.phase = 'morning'; S.t = 3; tod.setHour(6.5); ctx.morning(S.night); S.night++;
       }
     } else if (S.phase === 'morning') { S.t -= dt; if (S.t <= 0) { S.phase = 'await'; ctx.banner('아침', '공터에 착륙해 인간형으로 낮 준비를 하세요 (금빛 기둥)', 3); } }
     else if (S.phase === 'await') { if (gnd.mode === 'human') startDay(); }
+    else if (S.phase === 'crown') { if (!ctx.coronationActive()) { S.phase = 'boss'; S.bossSpawned = true; ctx.spawnFinaleBoss(FINALE.bossHp); } }
+    else if (S.phase === 'boss') { if (S.bossSpawned && !ctx.bossAlive()) win(); }
   }
   function objective() {
     const ds = S.dirs.map(d => d.name).join('·');
@@ -133,9 +140,11 @@ export function createNights(ctx) {
     if (S.phase === 'dusk') return '해질녘 · 용으로 이륙';
     if (S.phase === 'night') { const p = NIGHT_PLAN(S.night); return `${S.night}번째 밤 · 습격 ${Math.min(S.waveI, p.waves)}/${p.waves} · 남은 적 ${ctx.nightEnemies()} — 탑으로 오는 등불을 막으세요`; }
     if (S.phase === 'morning' || S.phase === 'await') return '아침 · 금빛 기둥(공터)에 착륙해 변신';
+    if (S.phase === 'crown') return '드래곤 엠페러 대관 — 하늘이 응답한다';
+    if (S.phase === 'boss') return '등불의 여왕 루세르나를 쓰러뜨리세요 · 풍향탑을 지키며';
     return '';
   }
   setBar(); startDay();
-  const canLand = () => !(S.phase === 'night' || S.phase === 'dusk');
-  return {update, raidStep, canLand, onKill, onInteract, promptFor, objective, get state() { return S; }, towerPos, debug: {startNight, win, lose}};
+  const canLand = () => !(S.phase === 'night' || S.phase === 'dusk' || S.phase === 'crown' || S.phase === 'boss');
+  return {update, raidStep, canLand, onKill, onInteract, promptFor, objective, get state() { return S; }, towerPos, debug: {startNight, win, lose, startFinale}};
 }

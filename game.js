@@ -136,7 +136,7 @@ function refreshBoss() { if (boss) $('#bossbar i span').style.width = Math.max(0
 function damageBoss(amount, at) {
   boss.userData.hp -= amount; refreshBoss(); burst(at, 0xffc56b, 10, 20, Math.min(fxScale(), 1.5));
   if (boss.userData.hp > 0) return;
-  const p = boss.position.clone(); scene.remove(boss); boss = null; bossKills++; bossCountdown = 120; $('#bossbar').hidden = true;
+  const p = boss.position.clone(); scene.remove(boss); boss = null; bossKills++; bossCountdown = NIGHTS ? Infinity : 120; $('#bossbar').hidden = true;
   for (let i = 0; i < 4; i++) burst(tmp.copy(p).add(tmp2.set((Math.random() - .5) * 40, (Math.random() - .5) * 20, (Math.random() - .5) * 40)), i % 2 ? 0xffdc88 : 0xff8a2a, 120, 55, 3);
   kills++; const before = rank; ({rank, rankXp} = addRankExperience({rank, rankXp}, 1500));
   markProgress(); hp = maxHp; banner('루세르나 격파!', `위계 경험치 +1500 · 귀환 보상 +150${rank > before ? ' · 위계 ' + ROMAN(rank) : ''}`, 3.5); refresh();
@@ -165,7 +165,7 @@ function updateBoss(dt) {
   }
   if ((u.summonCd -= dt) <= 0) {
     u.summonCd = 14;
-    for (let i = 0; i < 4; i++) makeEnemy(boss.position.x + (Math.random() - .5) * 60, boss.position.y - 10, boss.position.z + (Math.random() - .5) * 60, 'moth');
+    for (let i = 0; i < 4; i++) { const m = makeEnemy(boss.position.x + (Math.random() - .5) * 60, boss.position.y - 10, boss.position.z + (Math.random() - .5) * 60, 'moth'); if (NIGHTS) m.userData.nightWave = true; }
   }
   if (d < u.radius + 3.2 * scaleNow && hitTimer <= 0) { hurt(maxHp * .08); hitTimer = 1; }
   const pr2 = (2.5 * scaleNow + 4) ** 2;
@@ -260,7 +260,7 @@ function refresh() {
   $('#hp').style.width = Math.max(0, hp / maxHp * 100) + '%';
   $('#kills').textContent = NIGHTS ? `처치 ${kills}` : `처치 ${kills} · 발견 ${growth.discovered.length}/${SITES.length}`;
   $('#objective').textContent = NIGHTS ? '풍향탑의 세 밤 · ' + (nights ? Math.min(nights.state.night, 3) + ' / 3밤' : '') : level >= MAX_LEVEL ? '황제의 하늘 · 사냥하며 위계를 올리세요 (귀환 시 보상)' : st === 3 ? 'Lv.30 드래곤 엠페러로 진화하세요' : st === 2 ? 'Lv.20 3단계 진화까지 성장하세요' : 'Lv.10 진화의 갈림길까지 성장하세요';
-  $('#return').hidden = level < MAX_LEVEL || over; $('#pause-return').hidden = level < MAX_LEVEL;
+  $('#return').hidden = NIGHTS || level < MAX_LEVEL || over; $('#pause-return').hidden = NIGHTS || level < MAX_LEVEL;
 }
 function showCombo() {
   const el = $('#combo'); if (combo < 3) { el.classList.remove('on'); return; }
@@ -747,7 +747,12 @@ if (NIGHTS) {
     nightEnemies: () => enemies.filter(e => e.userData.nightWave).length,
     morning: n => { level = n === 1 ? 10 : 20; xp = 0; refresh(); hp = maxHp; invuln = 2; burst(player.position, 0xffdc88, 120, 40, fxScale()); sfx('evolve'); ambStage = stage(); audio.startAmbience(ambStage);
       banner(STAGE_NAMES()[stage() - 1] + '(으)로 진화', '밤을 버틴 숨결이 몸을 키웁니다', 3); refresh(); },
-    end: (won, why, S) => endNights(won, why, S)});
+    end: (won, why, S) => endNights(won, why, S),
+    clearNightEnemies: () => { for (const e of [...enemies]) if (e.userData.nightWave) removeEnemy(e); for (const b of enemyBolts) scene.remove(b.o); enemyBolts.length = 0; },
+    crown: () => { level = MAX_LEVEL; xp = 0; refresh(); ambStage = stage(); audio.startAmbience(ambStage); startCoronation(); },
+    coronationActive: () => coronation >= 0,
+    spawnFinaleBoss: hpMax => { if (boss) return; spawnBoss(); boss.userData.hp = boss.userData.maxHp = hpMax; refreshBoss(); },
+    bossAlive: () => !!boss});
 }
 if (!NIGHTS) quests = createQuests({scene, terrain, player, gnd, growth: () => growth, gainXp, oneTime: (k, a) => oneTime(growth, k, a), banner, sfx, burst, makeEnemy,
   stage, level: () => level, xp: () => xp, xpToNext, scale: () => scaleNow, markProgress, hurt, hp: () => hp, maxHp: () => maxHp,
