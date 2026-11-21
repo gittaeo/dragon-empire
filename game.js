@@ -728,7 +728,7 @@ if (NIGHTS) { // 매 판 새로 시작: 공터에서 인간형으로, 첫 임무
   store.set('dragonEmpireWorld.s' + NIGHTS_SLOT, JSON.stringify({version: 2, terrain: 'seed7-v1', form: 'human', pos: {x: -112, y: 0, z: 1402}, dragonPos: {x: -66.5, y: hy + 2.2, z: 1410}, yaw: 0, bag: {branch: 0, stone: 0, shard: 0, kit: 0}, collected: [], built: {workbench: true, tower: true}, step: 8}));
   store.set('dragonEmpireWorld.s' + NIGHTS_SLOT + '.bak', '');
 }
-const gnd = createGround({scene, terrain, player, store, banner, burst, spark, sfx, slot: NIGHTS ? NIGHTS_SLOT : SLOT, loadModel,
+const gnd = createGround({layout: NIGHTS ? 'nights' : null, scene, terrain, player, store, banner, burst, spark, sfx, slot: NIGHTS ? NIGHTS_SLOT : SLOT, loadModel,
   canLand: () => !nights || nights.canLand(),
   onInteract: k => (nights || quests)?.onInteract(k), promptFor: k => (nights || quests)?.promptFor(k),
   reward: (key, source, amount, label) => { const a = oneTime(growth, key, amount); if (a) { gainXp(a, source, label); markProgress(true); } },
@@ -758,7 +758,7 @@ if (NIGHTS) {
   tod.setSpeed(0); eliteCd = Infinity; bossCountdown = Infinity; if (!path) path = 'flame'; for (const k in growth.trials) growth.trials[k] = true;
   document.body.classList.add('nights');
   nights = createNights({focus: (pos, pitch = .15, t = 2.6) => { camFocus = {pos: pos.clone(), pitch, t}; }, seed: parseSeed(params.get('seed')), scene, gnd, tod, camera, raiders: () => enemies.filter(e => e.userData.raid || e.userData.assault), stopSfx: name => audio.stop?.(name), bossPos: () => boss?.position, banner, sfx, burst, makeEnemy, removeEnemy, groundAt: ground, shake: a => { shakeAmp = Math.max(shakeAmp, a); },
-    nightEnemies: () => enemies.filter(e => e.userData.nightWave).length,
+    nightEnemies: () => enemies.filter(e => e.userData.nightWave).length, hitEnemy: (e, n) => damageEnemy(e, n, 0x9fe8ff),
     morning: n => { level = n === 1 ? 10 : 20; xp = 0; refresh(); hp = maxHp; invuln = 2; burst(player.position, 0xffdc88, 120, 40, fxScale()); sfx('evolve'); ambStage = stage(); audio.startAmbience(ambStage);
       banner(STAGE_NAMES()[stage() - 1] + '(으)로 진화', '밤을 버틴 숨결이 몸을 키웁니다', 3); refresh(); },
     end: (won, why, S) => endNights(won, why, S),

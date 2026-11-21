@@ -305,3 +305,7 @@ body.nights header .currency{display:none}
 body.nights:has(#bossbar:not([hidden])) #tutor{top:140px}
 @media(max-width:520px){#tutor{top:auto;bottom:calc(env(safe-area-inset-bottom) + 230px);font-size:12px}}
 body:has(#start:not([hidden])) #tutor,body:has(#choice:not([hidden])) #tutor,body:has(#result:not([hidden])) #tutor{display:none}
+
+/* 세 밤 탑 메뉴: 밤 시작 버튼 강조 */
+#craftmenu button.go{border-color:var(--gold-hi);background:linear-gradient(180deg,rgba(233,196,106,.28),rgba(233,196,106,.1))}
+#craftmenu button.go span{color:var(--gold-hi)}

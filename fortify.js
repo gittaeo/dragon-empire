@@ -22,12 +22,12 @@ export function createFortify({scene, groundAt, towerPos, radius, segments, burs
   // ── 목책 방벽 ──
   const walls = {}; // dirId → {group, segs:[{group, stakes:[...]}]}
   const arcPoint = (a, r) => new T.Vector3(towerPos.x + Math.sin(a) * r, 0, towerPos.z - Math.cos(a) * r);
-  function buildWall(dir, delay = 0) {
+  function buildWall(dir, delay = 0, segCount = segments) {
     clearWall(dir.id);
     const group = new T.Group(); scene.add(group); const segs = [];
-    const span = Math.PI / 2 * .92, n = segments * STAKES_PER_SEG;
+    const span = Math.PI / 2 * .92, n = segCount * STAKES_PER_SEG;
     let prev = null;
-    for (let s = 0; s < segments; s++) {
+    for (let s = 0; s < segCount; s++) {
       const sg = new T.Group(); group.add(sg); const seg = {group: sg, stakes: [], broken: false};
       for (let i = 0; i < STAKES_PER_SEG; i++) {
         const j = s * STAKES_PER_SEG + i, a = dir.a - span / 2 + span * (j + .5) / n, p = arcPoint(a, radius + (j % 2 ? .6 : -.6));

@@ -94,6 +94,10 @@ export function createGround(ctx) {
     for (let i = 0; i < 10 && hAt(x, z) < W + 1.2; i++) { x -= dx * .12; z -= dz * .12; } // 물이면 중심 쪽으로 당김
     return new T.Vector3(x, hAt(x, z), z);
   }
+  // 세 밤: 기지를 북쪽 절벽 그늘·나무 숲에서 남서쪽 양지 평지로 (사용자 피드백 · 위에서 본 렌더로 확인). 탐험 모드는 그대로
+  const NL = ctx.layout === 'nights';
+  const L = NL ? {tower: [-38, 46], bench: [-31, 53], sera: [-45, 53], pad: [-38, 84], walk: 80} : {tower: [14, -10], bench: [-8, -6], sera: [10, -4], pad: [50, 0], walk: 0};
+  PAD.x = ZONE.x + L.pad[0]; PAD.z = ZONE.z + L.pad[1];
   const root = new T.Group(); scene.add(root);
   // 표식 기둥(하늘에서 공터 찾기용)
   const beacon = new T.Mesh(new T.CylinderGeometry(2.2, 2.2, 600, 16, 1, true), new T.MeshBasicMaterial({color: 0xffd27a, transparent: true, opacity: .14, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide}));
@@ -102,7 +106,7 @@ export function createGround(ctx) {
   zoneRing.rotation.x = -Math.PI / 2; zoneRing.position.set(ZONE.x, hAt(ZONE.x, ZONE.z) + 3, ZONE.z); root.add(zoneRing);
 
   // 풍향탑 (고장): 기둥 + 날개 + 꺼진 등불
-  const towerPos = placeOnGround(14, -10);
+  const towerPos = placeOnGround(...L.tower);
   const tower = new T.Group(); tower.position.copy(towerPos); root.add(tower);
   const wood = mat(0x6b4a2e), iron = mat(0x4a4a52, {metalness: .6, roughness: .5});
   const pole = new T.Mesh(new T.CylinderGeometry(.35, .55, 9, 8), wood); pole.position.y = 4.5; tower.add(pole);
@@ -115,7 +119,7 @@ export function createGround(ctx) {
   const towerLight = new T.PointLight(0xffb04a, 0, 40, 1.6); towerLight.position.copy(lantern.position); tower.add(towerLight);
 
   // 작업대 터 / 작업대
-  const benchPos = placeOnGround(-8, -6);
+  const benchPos = placeOnGround(...L.bench);
   const benchSite = new T.Mesh(new T.RingGeometry(1.1, 1.4, 24), new T.MeshBasicMaterial({color: 0xffd27a, transparent: true, opacity: .7, side: T.DoubleSide}));
   benchSite.rotation.x = -Math.PI / 2; benchSite.position.copy(benchPos).add(v.set(0, .08, 0)); root.add(benchSite);
   const bench = new T.Group(); bench.position.copy(benchPos); bench.visible = false; root.add(bench);
@@ -134,7 +138,7 @@ export function createGround(ctx) {
     g.userData = {legs, arms, body};
     return g;
   }
-  const seraPos = placeOnGround(10, -4);
+  const seraPos = placeOnGround(...L.sera);
   const props = [{name: '풍향탑', x: towerPos.x, z: towerPos.z, r: 2.5}, {name: '작업대', x: benchPos.x, z: benchPos.z, r: 1.8}, {name: '세라', x: seraPos.x, z: seraPos.z, r: 1.2}];
   const sera = person(0x3f6b6a, 0xe6bf9a, 0x6a3a22); sera.position.copy(seraPos); root.add(sera);
   const seraLamp = new T.Mesh(new T.SphereGeometry(.12, 8, 6), new T.MeshBasicMaterial({color: 0xffc24a})); seraLamp.position.set(.42, .85, .1); sera.add(seraLamp);
@@ -168,7 +172,7 @@ export function createGround(ctx) {
     const m = await ctx.loadModel('polymorph_female', {height: 1.75, feet: true}); if (!m) return false;
     // 이 GLB는 실제로 모델 +X를 바라봄(발끝 측정) — manifest의 '+Z' 보정만으로는 옆을 봐서 게 걸음이 됨.
     // 진행 방향(-Z)을 보도록 -90° 더 돌린 뒤 흔들기 축(몸의 좌우)을 계산한다
-    m.rotation.y = -Math.PI / 2;
+    m.rotation.order = 'XZY'; m.rotation.y = -Math.PI / 2; // XZY: 좌우 흔들림(z)·앞기울임(x)이 진행 방향 기준이 되도록
     m.updateMatrixWorld(true);
     m.traverse(o => { if (o.isBone && BONES.includes(o.name)) bones[o.name] = o; });
     const qp = new T.Quaternion();
@@ -182,14 +186,14 @@ export function createGround(ctx) {
   function pose(n, ang) { const b = bones[n]; if (b) b.quaternion.copy(rest[n]).premultiply(_q.setFromAxisAngle(axis[n], ang)); }
   function animateHero(t, moving, dt, run) {
     heroAmt += ((moving ? 1 : 0) - heroAmt) * Math.min(1, dt * 8);
-    const a = heroAmt, sw = Math.sin(t), k = run ? 1.25 : 1;
-    pose('LeftUpLeg', .5 * k * sw * a); pose('RightUpLeg', -.5 * k * sw * a);
-    pose('LeftLeg', -.75 * k * a * Math.max(0, Math.sin(t - 1.2))); pose('RightLeg', -.75 * k * a * Math.max(0, Math.sin(t + Math.PI - 1.2)));
-    pose('LeftArm', -.35 * k * sw * a); pose('RightArm', .35 * k * sw * a);
-    pose('LeftForeArm', -.2 * a); pose('RightForeArm', -.2 * a);
-    const breath = Math.sin(ctx.time() * 1.6) * .03 * (1 - a);
-    pose('Spine02', breath + .06 * a * (run ? 1.5 : 1)); pose('Hips', .04 * a);
-    if (bones.Hips) bones.Hips.position.y = bones.Hips.userData.y0 ?? (bones.Hips.userData.y0 = bones.Hips.position.y);
+    // 이 GLB의 자동 리깅은 다리 뼈가 메시와 어긋나 있음(좌우 엉덩이 뼈가 앞뒤 배치, 오른무릎 이탈 — 측정) →
+    // 다리·팔 뼈를 돌리면 메시가 찢어지듯 보임. 재리깅 전까지는 뼈를 쉬는 자세로 두고 몸 전체만 걷는 느낌으로 흔든다.
+    const a = heroAmt, k = run ? 1.4 : 1;
+    for (const n of ['LeftUpLeg', 'RightUpLeg', 'LeftLeg', 'RightLeg', 'LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm', 'Spine02', 'Hips']) pose(n, 0);
+    const step = Math.sin(t * 2), breath = Math.sin(ctx.time() * 1.6) * .012 * (1 - a);
+    hero.position.y = Math.abs(step) * .07 * k * a + breath; // 걸음마다 살짝 튀어오름
+    hero.rotation.z = Math.sin(t) * .045 * k * a; // 좌우로 체중 이동
+    hero.rotation.x = -.06 * k * a; // 앞으로 약간 기울임
   }
   function tintHuman() { const c = ctx.path() === 'storm' ? 0x2a5a8a : 0x7a2a1a; human.userData.body.material.color.set(c); for (const a of human.userData.arms) a.material.color.set(c); ember.material.color.set(ctx.path() === 'storm' ? 0x9ff0ff : 0xffa23a); }
 
@@ -338,7 +342,7 @@ export function createGround(ctx) {
       const nx = hp.pos.x + mx * speed * dt, nz = hp.pos.z + mz * speed * dt, ny = hAt(nx, nz), cy = hAt(hp.pos.x, hp.pos.z);
       const climb = (ny - cy) / Math.max(.001, speed * dt);
       // 물(깊이 0.5m 이상)·급경사(>1.2)·공터 밖 반경+120m 은 막음
-      const blocked = ny < W - .5 || climb > 1.2 || Math.hypot(nx - ZONE.x, nz - ZONE.z) > ZONE.r + 120;
+      const blocked = ny < W - .5 || climb > 1.2 || (L.walk ? Math.hypot(nx - towerPos.x, nz - towerPos.z) > L.walk : Math.hypot(nx - ZONE.x, nz - ZONE.z) > ZONE.r + 120); // 세 밤: 기지 주변만
       if (!blocked) { hp.pos.x = nx; hp.pos.z = nz; }
       hp.yaw = Math.atan2(-mx, -mz); hp.walkT += dt * speed * 1.6;
     }
