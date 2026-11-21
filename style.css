@@ -296,3 +296,11 @@ body:has(#start:not([hidden])) #raidmarks,body:has(#choice:not([hidden])) #raidm
 #begin:disabled{opacity:.55;cursor:progress}
 .panel.fail .lead b{color:var(--gold-hi);font-size:1.1em}
 body.nights header .currency{display:none}
+
+/* 첫 낮·밤 안내 (NIGHTS_ONBOARDING.md) */
+#tutor{position:fixed;left:50%;top:96px;transform:translateX(-50%);z-index:16;max-width:min(460px,calc(100vw - 32px));padding:10px 16px;border-radius:6px;background:rgba(10,11,18,.82);border:1px solid rgba(233,196,106,.55);box-shadow:0 6px 20px rgba(0,0,0,.45);font:600 13px/1.55 var(--body);color:var(--text);text-align:center;pointer-events:none;animation:tutorIn .35s ease-out}
+#tutor b{display:block;font-size:14px;color:var(--gold-hi);margin-bottom:2px}
+#tutor kbd{margin:0 2px}
+@keyframes tutorIn{from{opacity:0;transform:translate(-50%,-6px)}to{opacity:1;transform:translateX(-50%)}}
+body.nights:has(#bossbar:not([hidden])) #tutor{top:140px}
+@media(max-width:520px){#tutor{top:auto;bottom:calc(env(safe-area-inset-bottom) + 230px);font-size:12px}}
