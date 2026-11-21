@@ -309,3 +309,11 @@ body:has(#start:not([hidden])) #tutor,body:has(#choice:not([hidden])) #tutor,bod
 /* 세 밤 탑 메뉴: 밤 시작 버튼 강조 */
 #craftmenu button.go{border-color:var(--gold-hi);background:linear-gradient(180deg,rgba(233,196,106,.28),rgba(233,196,106,.1))}
 #craftmenu button.go span{color:var(--gold-hi)}
+
+/* 세 밤 v2: 오늘 밤 예보 칩 (DEFENSE_V2_DECISION M1) */
+#forecast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:15;display:flex;gap:10px;align-items:center;padding:7px 14px;border-radius:6px;background:rgba(10,11,18,.78);border:1px solid rgba(255,120,80,.45);font:600 13px/1.4 var(--body);color:var(--text);pointer-events:none}
+#forecast b{color:#ff9a6a;letter-spacing:.06em}
+#forecast span{white-space:nowrap}
+#forecast em{font-style:normal;color:#ffcf6a}
+body:has(#start:not([hidden])) #forecast,body:has(#result:not([hidden])) #forecast{display:none}
+@media(max-width:520px){#forecast{bottom:auto;top:150px;font-size:11px;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 32px)}}
