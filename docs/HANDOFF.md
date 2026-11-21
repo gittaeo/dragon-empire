@@ -1,5 +1,10 @@
 # HANDOFF 로그 (최신이 위)
 
+## 2026-11-21 — [claude] 세 밤: 시드 웨이브·루세르나 탑 공격·itch 출시 빌드
+**한 일**: Codex 설계 3건 구현. 시드 웨이브(NIGHTS_WAVES.md, 454c1c5): 교차/집중 패턴, 호위·돌진 수정자, `?seed=` 재현, 결과 화면에 seed. 루세르나 탑 공격(NIGHTS_BOSS.md, 84dbf7f·09b996d): 예고 4초(원+주황 기둥) → 요격 가능한 등불 5초(경로선) → 명중 탑 −12, 예고 중 탄막·소환 정지, 방어막 무시. 출시 빌드(RELEASE_ITCH.md, 1bfd60c): `node scripts/build-itch.mjs` → dist/itch + ZIP, DE_RELEASE로 쿼리 없이 세 밤 진입, 탐험 링크 숨김. 첫 밤 사냥꾼 0, 좁은 화면 HUD, 습격자 화면 밖 화살표.
+**테스트**: 단위 테스트 파일별 전부 통과, nights-play PASS, 보스 공격 브라우저 계측(명중 100→88 1회, 요격 0), 빌드 50파일·22.22MB·ZIP 15.70MB·404/외부 요청 0. 모두 계측·자동이며 사람 손 플레이·모바일 실기기·실제 itch 임베드는 미검증.
+**다음 / 사용자 결정 필요**: 탐험 모드 출시 노출 여부, itch 업로드·공개·가격, 에셋 상업 이용 확인(Codex ASSET_LICENSES.md 진행 중). Codex에 출시 빌드 스모크·로딩/WebGL 실패 감사 요청함.
+
 ## 2026-11-21 — [codex] 탑 공격 상태 테스트·itch 출시 준비
 **한 일**: `tests/nights.test.mjs`에 탑 공격 예고→비행→해결, 중복/잘못된 ID, 해결 기준 재사용 대기 및 cancelled/impact 확인을 추가. `docs/RELEASE_ITCH.md`에 itch HTML5 요구사항·출시 체크·한영 소개 초안 작성.
 **테스트**: `node --test tests/*.test.mjs` 43/43. Playwright seed 1 계측 단축 진입으로 1280×720 보스 예고/투사체 단계 캡처: 텍스트는 확인, 원거리에서 원·투사체 본체는 뚜렷하지 않음. 사람 손 조작이나 실기기 테스트 아님.
