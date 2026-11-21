@@ -4,19 +4,20 @@
 // 아침: 진화(1밤 → 드레이크, 2밤 → 웜). 세 번째 밤을 버티면 승리(루세르나·엠페러는 2주차).
 import * as T from './vendor/three.module.js';
 import {PAD} from './ground.js';
+import {createFortify} from './fortify.js';
 
 export const NIGHTS_TOTAL = 3;
 export const DIRS = [{id: 'n', name: '북쪽', a: 0}, {id: 'e', name: '동쪽', a: Math.PI / 2}, {id: 's', name: '남쪽', a: Math.PI}, {id: 'w', name: '서쪽', a: -Math.PI / 2}];
 // 밤 n(1~3)의 웨이브: 웨이브 수·크기·간격·속도·습격자 비율
-export const NIGHT_PLAN = n => ({waves: 3 + n, size: 4 + n, interval: 22 - 2 * n, speed: 15 + 3 * n, hunters: n - 1}); // 첫 밤은 사냥꾼 없음(Codex QA: 1밤 처치 0으로 사망)
+export const NIGHT_PLAN = n => ({waves: 3 + n, size: 4 + n, interval: 23 - 3 * n, speed: 13 + 5 * n, hunters: n - 1}); // 첫 밤은 사냥꾼 없음(Codex QA: 1밤 처치 0으로 사망) · 2·3밤 속도·간격 상향(사람 조준 봇: 탑 최저 72~80으로 긴장 부족, 11-21)
 // 하루 재료: 수리(가지2·돌1)와 방어막(가지1·돌2·파편1)을 동시에 만들 수 없게 → 택일 (Codex 리뷰). 남은 재료는 다음 날로 이월
 export const DAY_ITEMS = [['branch', 2], ['stone', 2], ['shard', 1]];
 // 셋째 밤 피날레 (NIGHTS_WEEK2.md P0): 웨이브 정리 → 엠페러 진화·대관식 → 루세르나(세 밤 전용 HP) → 격파 시 승리
 // 보스 HP 가설: Codex 입력 봇(거의 완벽 조준) 15000HP → 11.1초 ≈ 1350 DPS. 사람 명중률 ~30% 가정 시 ~400 DPS × 목표 90~150초(NIGHTS_BOSS.md) ≈ 45000. 사람 플레이테스트로 조정
-export const FINALE = {bossHp: 45000, boltDamage: .015}; // boltDamage: 보스 탄 1발 = 최대 HP 비율 (탐험 모드 .04 → 봇 비회피 21초 사망, Codex 보스 봇)
+export const FINALE = {bossHp: 65000, boltDamage: .01}; // boltDamage: 보스 탄 1발 = 최대 HP 비율 (탐험 모드 .04 → 봇 비회피 21초 사망, Codex 보스 봇) · HP 45000→65000(사람 조준 봇 36~38초 승리, 목표 사람 90~150초) · 탄 1.5%→1%(65000에서 비회피 봇 42초 사망)
 // 탑은 지난 습격으로 손상된 채 시작 → 첫 낮부터 수리/방어막 택일이 성립 (Codex 입력 봇: HP 100이면 수리 불가)
 export const TOWER_START = 80;
-export const DAY_SEC = 60, TOWER_MAX = 100, RAID_DAMAGE = 8, SHIELD_CHARGES = 6, SHIELD_R = 95;
+export const DAY_SEC = 60, TOWER_MAX = 100, RAID_DAMAGE = 8, SHIELD_CHARGES = 6, SHIELD_R = 55; // 목책 반경: 낮에 작업대(탑에서 ~22m)에서 보이도록 95→55 (막는 횟수는 동일)
 export const RECIPES_N = {
   repair: {name: '탑 수리', items: {branch: 2, stone: 1}, desc: '풍향탑 +30'},
   shield: {name: '방어막', items: {branch: 1, stone: 2, shard: 1}, desc: '그 방향 습격 6회 막음'},
@@ -73,7 +74,8 @@ export function createNights(ctx) {
   console.info(`[세 밤] seed=${runSeed} waves v${WAVES_VERSION}`);
   // 탑 HP 바
   const bar = document.createElement('div'); bar.id = 'towerbar'; bar.innerHTML = '<b>풍향탑</b><i><span></span></i><small></small>'; document.getElementById('hud').appendChild(bar);
-  const setBar = () => {
+  const fort = createFortify({scene, groundAt: ctx.groundAt, towerPos, radius: SHIELD_R, segments: SHIELD_CHARGES, burst: ctx.burst, sfx: ctx.sfx});
+  const setBar = () => { fort.setTowerHp(Math.max(0, S.towerHp) / TOWER_MAX);
     S.stats.minTower = Math.min(S.stats.minTower, Math.max(0, Math.ceil(S.towerHp)));
     bar.querySelector('span').style.width = Math.max(0, S.towerHp) + '%'; bar.classList.toggle('low', S.towerHp < 35);
     const sh = Object.entries(S.shields).filter(([, n]) => n > 0).map(([id, n]) => `방어막 ${DIRS.find(d => d.id === id).name} ${'●'.repeat(n)}${'○'.repeat(SHIELD_CHARGES - n)}`).join(' · ');
@@ -123,11 +125,10 @@ export function createNights(ctx) {
       if (ev.result === 'intercepted') { ctx.banner('요격!', '풍향탑을 지켰다', 1.2); ctx.sfx?.('assault_intercept'); }
     }
   }
-  // 방어막 표시(방향별 반구 조각)
+  // 방어막 표시: 방향별 실물 목책 (fortify.js)
   const shieldMesh = {};
   function makeShield(dir) {
-    const g = new T.Mesh(new T.SphereGeometry(SHIELD_R, 24, 10, -dir.a - Math.PI / 2 - Math.PI / 4, Math.PI / 2, 0, Math.PI / 2), new T.MeshBasicMaterial({color: 0x7fe0ff, transparent: true, opacity: .16, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending}));
-    g.position.copy(towerPos); scene.add(g); shieldMesh[dir.id] = g;
+    fort.buildWall(dir); shieldMesh[dir.id] = true;
   }
   // 예보 표시: 하늘에 방향별 붉은 등불 기둥
   const omen = [];
@@ -182,7 +183,7 @@ export function createNights(ctx) {
     e.position.addScaledVector(to, r.speed * dt); e.position.y = Math.max(e.position.y, ctx.groundAt(e.position.x, e.position.z) + 8);
     e.lookAt(towerPos); e.rotateY(Math.PI);
     const sh = S.shields[r.dir.id];
-    if (sh > 0 && d < SHIELD_R) { tutorTower(true); S.stats.blocked++; S.shields[r.dir.id]--; const m = shieldMesh[r.dir.id]; if (m) m.material.opacity = .6; setBar(); ctx.burst(e.position, 0x9ff0ff, 30, 20, 1); ctx.removeEnemy(e); S.raiders--; ctx.sfx?.('shield_block', e.position); if (S.shields[r.dir.id] <= 0) { scene.remove(shieldMesh[r.dir.id]); ctx.banner('방어막 소진', r.dir.name, 1.2); } return true; }
+    if (sh > 0 && d < SHIELD_R) { tutorTower(true); S.stats.blocked++; S.shields[r.dir.id]--; fort.hitWall(r.dir.id, S.shields[r.dir.id]); setBar(); ctx.burst(e.position, 0x9ff0ff, 30, 20, 1); ctx.removeEnemy(e); S.raiders--; ctx.sfx?.('shield_block', e.position); if (S.shields[r.dir.id] <= 0) { delete shieldMesh[r.dir.id]; ctx.banner('목책 무너짐', r.dir.name, 1.2); } return true; }
     if (d < 22) { tutorTower(false); S.stats.raidHits++; S.towerHp -= RAID_DAMAGE; setBar(); ctx.burst(e.position, 0xff6a2a, 50, 25, 1.4); ctx.shake(.5); ctx.sfx?.('tower_hit', e.position); ctx.removeEnemy(e); S.raiders--; if (S.towerHp <= 0) lose('풍향탑이 무너졌습니다'); return true; }
     return true;
   }
@@ -213,8 +214,9 @@ export function createNights(ctx) {
       return `<button data-i="${i}" ${ok ? '' : 'disabled'}><span>${r.name}${d ? ' · ' + d.name : ''}</span><small>${Object.entries(r.items).map(([k, n]) => NAME[k] + ' ' + n).join(' · ')} — ${r.desc}</small></button>`; }).join('') + '<button data-x>닫기</button>';
     menu.hidden = false; tutorMenuOpened();
     menu.querySelectorAll('[data-i]').forEach(bt => bt.onclick = () => { const [id, d] = opts[+bt.dataset.i]; const r = RECIPES_N[id]; if (!has(r.items)) return; pay(r.items);
-      if (id === 'repair') { S.towerHp = Math.min(TOWER_MAX, S.towerHp + 30); setBar(); ctx.burst(towerPos.clone().add(v.set(0, 6, 0)), 0xffd27a, 50, 10, .8); }
-      else { S.shields[d.id] = SHIELD_CHARGES; makeShield(d); setBar(); }
+      const from = gnd.human?.pos ? new T.Vector3().copy(gnd.human.pos) : towerPos.clone();
+      if (id === 'repair') { S.towerHp = Math.min(TOWER_MAX, S.towerHp + 30); setBar(); fort.carry(from, towerPos.clone().add(new T.Vector3(0, 5, 0)), r.items, () => fort.repair()); }
+      else { S.shields[d.id] = SHIELD_CHARGES; setBar(); const c = towerPos.clone().addScaledVector(dirVec(d.a).clone(), SHIELD_R); c.y = ctx.groundAt(c.x, c.z) + 3; fort.carry(from, c, r.items, () => makeShield(d)); }
       ctx.sfx?.('levelup'); S.crafted++; S.stats.crafted.push(`${S.night}:${id === 'repair' ? '수리' : d.name}`); menu.hidden = true; tutorCrafted(id, d); ctx.banner(r.name + (d ? ' · ' + d.name : ''), r.desc, 1.6); gnd.save(); });
     menu.querySelector('[data-x]').onclick = () => { menu.hidden = true; tutorMenuClosed(); };
   }
@@ -259,7 +261,7 @@ export function createNights(ctx) {
     tutorUpdate(dt);
     if (S.dayCue && S.phase === 'day') { S.dayCue = false; ctx.sfx?.('day_start'); }
     updateMarks();
-    for (const k in shieldMesh) { const m = shieldMesh[k]; m.material.opacity += (.16 - m.material.opacity) * Math.min(1, dt * 3); }
+    fort.update(dt);
     if (S.phase === 'day') {
       S.t -= dt; if (S.t <= 0) { if (!menu.hidden) { menu.hidden = true; } startNight(); }
     } else if (S.phase === 'dusk') {
@@ -275,7 +277,7 @@ export function createNights(ctx) {
       const plan = NIGHT_PLAN(S.night);
       if (S.waveI < S.plan.waves.length) { S.waveT -= dt; if (S.waveT <= 0) { spawnWave(); S.waveT = plan.interval; } }
       else if (ctx.nightEnemies() === 0) { // 밤 끝 → 아침
-        for (const k in shieldMesh) { scene.remove(shieldMesh[k]); delete shieldMesh[k]; } S.shields = {}; setBar();
+        for (const k in shieldMesh) delete shieldMesh[k]; fort.clearWalls(); S.shields = {}; setBar();
         if (S.night >= NIGHTS_TOTAL) { startFinale(); return; }
         S.phase = 'morning'; S.t = 3; tod.setHour(6.5); ctx.morning(S.night); S.night++;
       }
@@ -302,5 +304,5 @@ export function createNights(ctx) {
   setBar(); startDay();
   const canLand = () => !(S.phase === 'night' || S.phase === 'dusk' || S.phase === 'crown' || S.phase === 'boss');
   const bossQuiet = () => S.phase === 'boss' && !!S.assault && S.assault.state === 'telegraph'; // 예고 중엔 새 탄막·소환 금지
-  return {update, raidStep, canLand, bossQuiet, onKill, onInteract, promptFor, objective, get state() { return S; }, towerPos, debug: {startNight, win, lose, startFinale, get tutorial() { return {step: TU.step, shown: !tutorEl.hidden, text: tutorEl.textContent}; }}};
+  return {update, raidStep, canLand, bossQuiet, fort, onKill, onInteract, promptFor, objective, get state() { return S; }, towerPos, debug: {startNight, win, lose, startFinale, get tutorial() { return {step: TU.step, shown: !tutorEl.hidden, text: tutorEl.textContent}; }}};
 }
