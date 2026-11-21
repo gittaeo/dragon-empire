@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { forecast, angleDiff, DIRS, NIGHT_PLAN, RECIPES_N, NIGHTS_TOTAL, DAY_SEC, TOWER_MAX, RAID_DAMAGE, SHIELD_CHARGES, SHIELD_R } from '../nights.js';
+import { forecast, angleDiff, DIRS, NIGHT_PLAN, RECIPES_N, DAY_ITEMS, NIGHTS_TOTAL, DAY_SEC, TOWER_MAX, RAID_DAMAGE, SHIELD_CHARGES, SHIELD_R } from '../nights.js';
 
 test('forecast covers all twelve ordered pairs of distinct directions', () => {
   const pairs = new Set();
@@ -28,6 +28,8 @@ test('night plans progress while preserving at least one raider', () => {
     const p = NIGHT_PLAN(night);
     assert.ok(Number.isInteger(p.waves) && p.waves > 0);
     assert.ok(Number.isInteger(p.size) && p.size > p.hunters && p.hunters >= 0);
+    assert.ok(Number.isInteger(p.hunters), 'hunter count must be a non-negative integer');
+    if (night === 1) assert.equal(p.hunters, 0, 'first night has no hunters');
     assert.ok(p.interval > 0 && p.speed > 0);
     if (previous) { assert.ok(p.waves > previous.waves); assert.ok(p.size > previous.size); assert.ok(p.speed > previous.speed); assert.ok(p.interval < previous.interval); }
     previous = p;
@@ -35,7 +37,7 @@ test('night plans progress while preserving at least one raider', () => {
 });
 
 test('preparation costs fit the materials available per day', () => {
-  const daily = {branch: 3, stone: 3, shard: 1};
+  const daily = Object.fromEntries(DAY_ITEMS);
   for (const recipe of Object.values(RECIPES_N)) for (const [item, amount] of Object.entries(recipe.items)) {
     assert.ok(Number.isInteger(amount) && amount > 0);
     assert.ok(item in daily && amount <= daily[item]);
