@@ -27,7 +27,29 @@ export function createNights(ctx) {
   const S = {phase: 'day', night: 1, t: DAY_SEC, towerHp: TOWER_MAX, dirs: forecast(), shields: {}, waveI: 0, waveT: 0, raiders: 0, over: false, crafted: 0, best: null};
   // 탑 HP 바
   const bar = document.createElement('div'); bar.id = 'towerbar'; bar.innerHTML = '<b>풍향탑</b><i><span></span></i><small></small>'; document.getElementById('hud').appendChild(bar);
-  const setBar = () => { bar.querySelector('span').style.width = Math.max(0, S.towerHp) + '%'; bar.querySelector('small').textContent = Math.ceil(Math.max(0, S.towerHp)) + ' / ' + TOWER_MAX; bar.classList.toggle('low', S.towerHp < 35); };
+  const setBar = () => {
+    bar.querySelector('span').style.width = Math.max(0, S.towerHp) + '%'; bar.classList.toggle('low', S.towerHp < 35);
+    const sh = Object.entries(S.shields).filter(([, n]) => n > 0).map(([id, n]) => `방어막 ${DIRS.find(d => d.id === id).name} ${'●'.repeat(n)}${'○'.repeat(SHIELD_CHARGES - n)}`).join(' · ');
+    bar.querySelector('small').textContent = Math.ceil(Math.max(0, S.towerHp)) + ' / ' + TOWER_MAX + (sh ? ' · ' + sh : '');
+  };
+  const raidOrbGeo = new T.SphereGeometry(1.1, 10, 8), raidOrbMat = new T.MeshBasicMaterial({color: 0xff3a2a, transparent: true, opacity: .9, blending: T.AdditiveBlending, depthWrite: false});
+  // 습격자 위치 표시: 화면 안이면 붉은 표식, 밖이면 화면 가장자리 화살표 (가까운 8마리)
+  const marks = document.createElement('div'); marks.id = 'raidmarks'; document.body.appendChild(marks);
+  const pool = Array.from({length: 8}, () => { const d = document.createElement('i'); marks.appendChild(d); return d; });
+  const pv = new T.Vector3();
+  function updateMarks() {
+    const cam = ctx.camera, list = S.phase === 'night' || S.phase === 'boss' ? ctx.raiders() : [];
+    list.sort((a, b) => a.position.distanceToSquared(towerPos) - b.position.distanceToSquared(towerPos));
+    const W = innerWidth, H = innerHeight, m = 46;
+    pool.forEach((el, i) => {
+      const e = list[i]; if (!e) { el.style.display = 'none'; return; }
+      pv.copy(e.position).project(cam); const behind = pv.z > 1;
+      let x = (pv.x * .5 + .5) * W, y = (-pv.y * .5 + .5) * H; const on = !behind && x > m && x < W - m && y > m && y < H - m;
+      if (!on) { let dx = x - W / 2, dy = y - H / 2; if (behind) { dx = -dx; dy = -dy; } const k = Math.min((W / 2 - m) / Math.abs(dx || 1e-3), (H / 2 - m) / Math.abs(dy || 1e-3)); x = W / 2 + dx * k; y = H / 2 + dy * k; el.style.transform = `translate(${x}px,${y}px) rotate(${Math.atan2(dy, dx)}rad)`; el.className = 'edge'; }
+      else { el.style.transform = `translate(${x}px,${y}px)`; el.className = 'on'; }
+      el.style.display = 'block';
+    });
+  }
   // 방어막 표시(방향별 반구 조각)
   const shieldMesh = {};
   function makeShield(dir) {
@@ -58,7 +80,7 @@ export function createNights(ctx) {
       const side = (i - plan.size / 2) * 18, p = towerPos.clone().addScaledVector(base, 620 + Math.random() * 60).add(v.set(-base.z * side, 0, base.x * side));
       p.y = ctx.groundAt(p.x, p.z) + 70 + Math.random() * 40;
       const hunter = i < plan.hunters, e = ctx.makeEnemy(p.x, p.y, p.z, hunter ? 'rider' : 'moth');
-      if (!hunter) { e.userData.raid = {dir: d, speed: plan.speed * (.9 + Math.random() * .2)}; S.raiders++; }
+      if (!hunter) { e.userData.raid = {dir: d, speed: plan.speed * (.9 + Math.random() * .2)}; S.raiders++; const orb = new T.Mesh(raidOrbGeo, raidOrbMat); orb.position.y = 3.2 / Math.max(.5, e.scale.y); orb.scale.setScalar(1 / Math.max(.5, e.scale.y)); e.add(orb); }
       e.userData.nightWave = true;
     }
     ctx.banner(`습격 ${S.waveI + 1} / ${plan.waves}`, `${d.name}에서 ${plan.size}마리`, 1.4);
@@ -71,7 +93,7 @@ export function createNights(ctx) {
     e.position.addScaledVector(to, r.speed * dt); e.position.y = Math.max(e.position.y, ctx.groundAt(e.position.x, e.position.z) + 8);
     e.lookAt(towerPos); e.rotateY(Math.PI);
     const sh = S.shields[r.dir.id];
-    if (sh > 0 && d < SHIELD_R) { S.shields[r.dir.id]--; ctx.burst(e.position, 0x9ff0ff, 30, 20, 1); ctx.removeEnemy(e); S.raiders--; ctx.sfx?.('skill_shield'); if (S.shields[r.dir.id] <= 0) { scene.remove(shieldMesh[r.dir.id]); ctx.banner('방어막 소진', r.dir.name, 1.2); } return true; }
+    if (sh > 0 && d < SHIELD_R) { S.shields[r.dir.id]--; const m = shieldMesh[r.dir.id]; if (m) m.material.opacity = .6; setBar(); ctx.burst(e.position, 0x9ff0ff, 30, 20, 1); ctx.removeEnemy(e); S.raiders--; ctx.sfx?.('skill_shield'); if (S.shields[r.dir.id] <= 0) { scene.remove(shieldMesh[r.dir.id]); ctx.banner('방어막 소진', r.dir.name, 1.2); } return true; }
     if (d < 22) { S.towerHp -= RAID_DAMAGE; setBar(); ctx.burst(e.position, 0xff6a2a, 50, 25, 1.4); ctx.shake(.5); ctx.sfx?.('player_hurt', e.position); ctx.removeEnemy(e); S.raiders--; if (S.towerHp <= 0) lose('풍향탑이 무너졌습니다'); return true; }
     return true;
   }
@@ -103,13 +125,15 @@ export function createNights(ctx) {
     menu.hidden = false;
     menu.querySelectorAll('[data-i]').forEach(bt => bt.onclick = () => { const [id, d] = opts[+bt.dataset.i]; const r = RECIPES_N[id]; if (!has(r.items)) return; pay(r.items);
       if (id === 'repair') { S.towerHp = Math.min(TOWER_MAX, S.towerHp + 30); setBar(); ctx.burst(towerPos.clone().add(v.set(0, 6, 0)), 0xffd27a, 50, 10, .8); }
-      else { S.shields[d.id] = SHIELD_CHARGES; makeShield(d); }
+      else { S.shields[d.id] = SHIELD_CHARGES; makeShield(d); setBar(); }
       ctx.sfx?.('levelup'); S.crafted++; menu.hidden = true; ctx.banner(r.name + (d ? ' · ' + d.name : ''), r.desc, 1.6); gnd.save(); });
     menu.querySelector('[data-x]').onclick = () => { menu.hidden = true; };
   }
 
   function update(dt) {
-    if (S.over) return;
+    if (S.over) { marks.hidden = true; return; }
+    updateMarks();
+    for (const k in shieldMesh) { const m = shieldMesh[k]; m.material.opacity += (.16 - m.material.opacity) * Math.min(1, dt * 3); }
     if (S.phase === 'day') {
       S.t -= dt; if (S.t <= 0) { menu.hidden = true; startNight(); }
     } else if (S.phase === 'dusk') {
@@ -125,7 +149,7 @@ export function createNights(ctx) {
       const plan = NIGHT_PLAN(S.night);
       if (S.waveI < plan.waves) { S.waveT -= dt; if (S.waveT <= 0) { spawnWave(); S.waveT = plan.interval; } }
       else if (ctx.nightEnemies() === 0) { // 밤 끝 → 아침
-        for (const k in shieldMesh) scene.remove(shieldMesh[k]); S.shields = {};
+        for (const k in shieldMesh) { scene.remove(shieldMesh[k]); delete shieldMesh[k]; } S.shields = {}; setBar();
         if (S.night >= NIGHTS_TOTAL) { startFinale(); return; }
         S.phase = 'morning'; S.t = 3; tod.setHour(6.5); ctx.morning(S.night); S.night++;
       }

@@ -743,7 +743,7 @@ const _fwd = new T.Vector3();
 if (NIGHTS) {
   tod.setSpeed(0); eliteCd = Infinity; bossCountdown = Infinity; if (!path) path = 'flame'; for (const k in growth.trials) growth.trials[k] = true;
   document.body.classList.add('nights');
-  nights = createNights({scene, gnd, tod, banner, sfx, burst, makeEnemy, removeEnemy, groundAt: ground, shake: a => { shakeAmp = Math.max(shakeAmp, a); },
+  nights = createNights({scene, gnd, tod, camera, raiders: () => enemies.filter(e => e.userData.raid), banner, sfx, burst, makeEnemy, removeEnemy, groundAt: ground, shake: a => { shakeAmp = Math.max(shakeAmp, a); },
     nightEnemies: () => enemies.filter(e => e.userData.nightWave).length,
     morning: n => { level = n === 1 ? 10 : 20; xp = 0; refresh(); hp = maxHp; invuln = 2; burst(player.position, 0xffdc88, 120, 40, fxScale()); sfx('evolve'); ambStage = stage(); audio.startAmbience(ambStage);
       banner(STAGE_NAMES()[stage() - 1] + '(으)로 진화', '밤을 버틴 숨결이 몸을 키웁니다', 3); refresh(); },
