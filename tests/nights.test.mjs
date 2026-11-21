@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { forecast, angleDiff, DIRS, NIGHT_PLAN, RECIPES_N, DAY_ITEMS, NIGHTS_TOTAL, DAY_SEC, TOWER_MAX, RAID_DAMAGE, SHIELD_CHARGES, SHIELD_R, buildWaves, parseSeed, rngFor, WAVES_VERSION, RUSH_SPEED } from '../nights.js';
+import { forecast, angleDiff, DIRS, NIGHT_PLAN, RECIPES_N, DAY_ITEMS, NIGHTS_TOTAL, DAY_SEC, TOWER_MAX, RAID_DAMAGE, SHIELD_CHARGES, SHIELD_R, buildWaves, parseSeed, rngFor, WAVES_VERSION, RUSH_SPEED, createAssault, assaultStep, assaultResolve, TOWER_ASSAULT } from '../nights.js';
 
 test('forecast covers all twelve ordered pairs of distinct directions', () => {
   const pairs = new Set();
@@ -89,5 +89,36 @@ test('consuming forecast or spawn stream does not change the pattern stream', ()
     const changedForecast = buildWaves({...args, dirs: otherDirs});
     assert.equal(changedForecast.pattern, expected.pattern);
     assert.deepEqual(changedForecast.waves.map(({dir, ...rest}) => rest), expected.waves.map(({dir, ...rest}) => rest));
+  }
+});
+
+test('tower assault emits telegraph, travel and exactly one result per id', () => {
+  const a = createAssault();
+  assert.deepEqual(assaultStep(a, TOWER_ASSAULT.initialDelay - 1), []);
+  const [warning] = assaultStep(a, 1);
+  assert.deepEqual(warning, {kind: 'tower_assault', id: 1, phase: 'telegraph', remaining: TOWER_ASSAULT.telegraph});
+  assert.equal(assaultResolve(a, 1, 'impact'), null, 'cannot resolve before travel');
+  assert.deepEqual(assaultStep(a, TOWER_ASSAULT.telegraph - 1), []);
+  const [travel] = assaultStep(a, 1);
+  assert.deepEqual(travel, {kind: 'tower_assault', id: 1, phase: 'travel', remaining: TOWER_ASSAULT.travel});
+  assert.deepEqual(assaultStep(a, 2), []);
+  assert.equal(assaultResolve(a, 99, 'impact'), null, 'wrong id');
+  assert.deepEqual(assaultResolve(a, 1, 'intercepted'), {kind: 'tower_assault', id: 1, phase: 'resolved', result: 'intercepted'});
+  assert.equal(assaultResolve(a, 1, 'impact'), null, 'duplicate does not deal damage');
+  assert.deepEqual(assaultStep(a, TOWER_ASSAULT.cooldown - 1), []);
+  assert.equal(assaultStep(a, 1)[0].id, 2, 'cooldown starts upon resolution');
+  assert.equal(assaultResolve(a, 1, 'impact'), null, 'old id stays resolved');
+});
+
+test('cancelled and impact resolve once, then restart cooldown', () => {
+  for (const outcome of ['cancelled', 'impact']) {
+    const a = createAssault();
+    assaultStep(a, TOWER_ASSAULT.initialDelay);
+    assaultStep(a, TOWER_ASSAULT.telegraph);
+    assert.equal(assaultResolve(a, 1, outcome).result, outcome);
+    assert.equal(assaultResolve(a, 1, outcome), null);
+    assert.equal(a.state, 'idle');
+    assert.equal(a.t, TOWER_ASSAULT.cooldown);
+    assert.equal(assaultStep(a, TOWER_ASSAULT.cooldown)[0].phase, 'telegraph');
   }
 });
