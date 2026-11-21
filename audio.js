@@ -37,7 +37,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(Number(v)
 
 export function createAudio() {
   let context = null, master = null, ambience = null, ambienceStage = null, muted = false, masterValue = 0.7, unlocked = false, noiseBuffer = null;
-  const recent = new Map();
+  const recent = new Map(), active = new Map();
   try { const saved = JSON.parse(globalThis.localStorage?.getItem(STORAGE_KEY) || 'null'); if (saved) { muted = !!saved.muted; masterValue = clamp(saved.master,0,1); } } catch {}
   const save = () => { try { globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify({muted,master:masterValue})); } catch {} };
   function applyMaster() { if (master && context) master.gain.setTargetAtTime(muted ? 0 : masterValue, context.currentTime, .025); }
@@ -66,6 +66,14 @@ export function createAudio() {
     if (ambienceStage!==null) startAmbience(ambienceStage);
   }
   if (typeof document !== 'undefined') for (const event of ['pointerdown','keydown','touchstart']) document.addEventListener(event,unlock,{capture:true,passive:true,once:true});
+  // Stops all currently playing instances of a named effect; ambience is separate.
+  function stop(name) {
+    const sources = active.get(name); if (!sources) return 0;
+    active.delete(name); recent.delete(name);
+    let stopped = 0;
+    for (const source of sources) { try { source.stop(context.currentTime); stopped++; } catch {} }
+    return stopped;
+  }
   function play(name, options={}) {
     const spec=SPECS[name]; if (!spec || !unlocked || muted || !ensureContext()) return false;
     const now=context.currentTime, entries=(recent.get(name)||[]).filter(t=>now-t<1);
@@ -75,11 +83,12 @@ export function createAudio() {
     try {
       const gain=context.createGain(); gain.gain.setValueAtTime(.0001,now); gain.gain.exponentialRampToValueAtTime(Math.max(.0002,volume*.14),now+(spec.attack || .012)); gain.gain.exponentialRampToValueAtTime(.0001,now+spec.d);
       if (context.createStereoPanner) { const pan=context.createStereoPanner(); pan.pan.value=clamp(x/100,-1,1); gain.connect(pan); pan.connect(master); } else gain.connect(master);
-      const osc=context.createOscillator(); osc.type=spec.type; osc.frequency.setValueAtTime(spec.f,now); osc.frequency.exponentialRampToValueAtTime(spec.end,now+spec.d); osc.connect(gain); osc.start(now); osc.stop(now+spec.d+.03);
-      if (spec.harm) { const overtone=context.createOscillator(), sub=context.createGain(); overtone.type='sine'; overtone.frequency.setValueAtTime(spec.f*spec.harm,now); overtone.frequency.exponentialRampToValueAtTime(spec.end*spec.harm,now+spec.d); sub.gain.value=.26; overtone.connect(sub); sub.connect(gain); overtone.start(now); overtone.stop(now+spec.d+.03); }
-      if (spec.noise) { const source=context.createBufferSource(), filter=context.createBiquadFilter(), ng=context.createGain(); source.buffer=noise(); filter.type='lowpass'; filter.frequency.value=Math.max(350,spec.f*3); ng.gain.value=spec.noise; source.connect(filter); filter.connect(ng); ng.connect(gain); source.start(now); source.stop(now+spec.d+.03); }
+      const track = source => { let sources = active.get(name); if (!sources) active.set(name, sources = new Set()); sources.add(source); source.onended = () => { sources.delete(source); if (!sources.size && active.get(name) === sources) active.delete(name); }; source.start(now); source.stop(now+spec.d+.03); };
+      const osc=context.createOscillator(); osc.type=spec.type; osc.frequency.setValueAtTime(spec.f,now); osc.frequency.exponentialRampToValueAtTime(spec.end,now+spec.d); osc.connect(gain); track(osc);
+      if (spec.harm) { const overtone=context.createOscillator(), sub=context.createGain(); overtone.type='sine'; overtone.frequency.setValueAtTime(spec.f*spec.harm,now); overtone.frequency.exponentialRampToValueAtTime(spec.end*spec.harm,now+spec.d); sub.gain.value=.26; overtone.connect(sub); sub.connect(gain); track(overtone); }
+      if (spec.noise) { const source=context.createBufferSource(), filter=context.createBiquadFilter(), ng=context.createGain(); source.buffer=noise(); filter.type='lowpass'; filter.frequency.value=Math.max(350,spec.f*3); ng.gain.value=spec.noise; source.connect(filter); filter.connect(ng); ng.connect(gain); track(source); }
       entries.push(now); recent.set(name,entries); return true;
     } catch { return false; }
   }
-  return {play,setMaster(v){masterValue=clamp(v,0,1);applyMaster();save()},mute(v){muted=!!v;applyMaster();save()},startAmbience,stopAmbience};
+  return {play,stop,setMaster(v){masterValue=clamp(v,0,1);applyMaster();save()},mute(v){muted=!!v;applyMaster();save()},startAmbience,stopAmbience};
 }

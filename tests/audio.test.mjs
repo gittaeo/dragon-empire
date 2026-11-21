@@ -30,3 +30,19 @@ test('스토리지가 막혀도 오디오 객체가 생성된다', () => {
   const old=globalThis.localStorage; Object.defineProperty(globalThis,'localStorage',{configurable:true,get(){throw new Error('denied')}});
   try { const audio=createAudio(); assert.doesNotThrow(()=>{audio.setMaster(.5);audio.mute(true)}); } finally { if(old===undefined) delete globalThis.localStorage; else Object.defineProperty(globalThis,'localStorage',{value:old,writable:true,configurable:true}); }
 });
+
+test('특정 소리만 중지하고 즉시 다시 재생할 수 있다', () => {
+  const handlers = {}, sources = [];
+  class Param { setValueAtTime(){} exponentialRampToValueAtTime(){} setTargetAtTime(){} }
+  class Node { constructor(){this.gain=new Param();this.frequency=new Param();this.pan=new Param();this.stops=[]} connect(){} start(){} stop(t){this.stops.push(t)} }
+  class Context { constructor(){this.currentTime=1;this.sampleRate=100;this.destination={}} createGain(){return new Node()} createOscillator(){const n=new Node();sources.push(n);return n} createStereoPanner(){return new Node()} resume(){return Promise.resolve()} }
+  const old={document:globalThis.document,AudioContext:globalThis.AudioContext,localStorage:globalThis.localStorage};
+  globalThis.document={addEventListener:(n,f)=>handlers[n]=f}; globalThis.AudioContext=Context; globalThis.localStorage={getItem:()=>null,setItem:()=>{}};
+  try {
+    const a=createAudio(); assert.equal(a.stop('assault_warn'),0); handlers.pointerdown();
+    assert.equal(a.play('assault_warn'),true); assert.equal(sources.length,2);
+    assert.equal(a.stop('assault_warn'),2); assert.ok(sources.every(n=>n.stops.at(-1)===1));
+    assert.equal(a.stop('assault_warn'),0); assert.equal(a.play('assault_warn'),true,'rate limit reset allows immediate replay');
+    sources[0].onended(); assert.equal(a.stop('assault_warn'),2,'old onended must not clear new sources');
+  } finally { for(const [k,v] of Object.entries(old)) { if(v===undefined) delete globalThis[k]; else globalThis[k]=v; } }
+});
