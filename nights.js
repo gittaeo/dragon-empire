@@ -13,7 +13,7 @@ export const NIGHT_PLAN = n => ({waves: 3 + n, size: 4 + n, interval: 22 - 2 * n
 export const DAY_ITEMS = [['branch', 2], ['stone', 2], ['shard', 1]];
 // 셋째 밤 피날레 (NIGHTS_WEEK2.md P0): 웨이브 정리 → 엠페러 진화·대관식 → 루세르나(세 밤 전용 HP) → 격파 시 승리
 // 보스 HP 가설: Codex 입력 봇(거의 완벽 조준) 15000HP → 11.1초 ≈ 1350 DPS. 사람 명중률 ~30% 가정 시 ~400 DPS × 목표 90~150초(NIGHTS_BOSS.md) ≈ 45000. 사람 플레이테스트로 조정
-export const FINALE = {bossHp: 45000};
+export const FINALE = {bossHp: 45000, boltDamage: .015}; // boltDamage: 보스 탄 1발 = 최대 HP 비율 (탐험 모드 .04 → 봇 비회피 21초 사망, Codex 보스 봇)
 // 탑은 지난 습격으로 손상된 채 시작 → 첫 낮부터 수리/방어막 택일이 성립 (Codex 입력 봇: HP 100이면 수리 불가)
 export const TOWER_START = 80;
 export const DAY_SEC = 60, TOWER_MAX = 100, RAID_DAMAGE = 8, SHIELD_CHARGES = 6, SHIELD_R = 95;

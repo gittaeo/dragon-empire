@@ -12,7 +12,7 @@ import {FlightAnimator} from './dragon-anim.js';
 import {createAudio} from './audio.js';
 import {syncTrials, emptyGrowth, migrateGrowth, accrueRest, tickPlay, combatXp, oneTime, gateFor, holdAtGate, REWARDS, SITES, DISCOVERY_STAGE_MUL} from './growth.js';
 import {createQuests} from './quests.js';
-import {createNights, parseSeed} from './nights.js';
+import {createNights, parseSeed, FINALE} from './nights.js';
 import {createGround, activeSlot, listSlots, MAX_SLOTS, ACTIVE_SLOT_KEY} from './ground.js';
 import {createSkillSystem, skillFor, fireTrait, SLOT_UNLOCK, COMBO_WINDOW, comboLabel, ULT_PER_KILL, ULT_PER_SEC} from './skills.js';
 
@@ -175,7 +175,7 @@ function updateBoss(dt) {
     const b = bossBolts[i]; if (!b) break;
     b.o.position.addScaledVector(b.v, dt); b.life -= dt;
     if (Math.random() < .3) spark(b.o.position, 0xffa13a, _pv.set(0, 0, 0), 5, .35);
-    if (b.o.position.distanceToSquared(player.position) < pr2) { hurt(maxHp * .04); burst(b.o.position, 0xffb54a, 16, 18); b.life = 0; }
+    if (b.o.position.distanceToSquared(player.position) < pr2) { hurt(maxHp * (NIGHTS ? FINALE.boltDamage : .04)); /* 세 밤: 긴 보스전(90~150초 목표)에 맞춘 탄 피해 */ burst(b.o.position, 0xffb54a, 16, 18); b.life = 0; }
     if (b.life <= 0) { scene.remove(b.o); bossBolts.splice(i, 1); }
   }
 }
