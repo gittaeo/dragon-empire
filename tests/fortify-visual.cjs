@@ -15,15 +15,15 @@ const fs = require('node:fs'), path = require('node:path'), os = require('node:o
       const hook=`\nwindow.__fortTest={
         moveSpot(id){const s=gnd.spots.find(x=>x.id===id);if(!s)throw Error('missing '+id);gnd.human.pos.copy(s.pos)},
         moveTower(){gnd.human.pos.copy(gnd.positions.tower)},
-        moveWall(id){gnd.human.pos.copy(nights.base.pads.find(p=>p.id==='wall_'+id).pos)},
+        moveWall(id){gnd.human.pos.copy(nights.base.pads.find(p=>p.id==='gate_'+id).pos)},
         dayEnd(){nights.debug.startNight()},
         async land(){const {PAD}=await import('/ground.js');player.position.set(PAD.x,ground(PAD.x,PAD.z)+10,PAD.z);return gnd.tryLand()},
         morph(){return gnd.toHuman()}, form(){return {mode:gnd.mode,busy:gnd.busy}},
-        prepareRaid(id){const e=enemies.find(x=>x.userData.raid?.dir.id===id);if(!e){nights.state.waveT=0;return false} e.position.copy(nights.towerPos).add(new T.Vector3(0,10,40));return true},
+        prepareRaid(id){const e=enemies.find(x=>x.userData.raid?.ground && x.userData.raid.dir.id===id);if(!e){nights.state.waveT=0;return false} const d=e.userData.raid.dir,t=nights.towerPos;e.position.set(t.x+Math.sin(d.a)*36,ground(t.x+Math.sin(d.a)*36,t.z-Math.cos(d.a)*36)+e.userData.foot,t.z-Math.cos(d.a)*36);e.userData.raid.cd=0;return true},
         finishNight(){nights.state.waveI=nights.state.plan.waves;for(const e of [...enemies])if(e.userData.nightWave)killEnemy(e)},
         smoke(){return scene.children.filter(o=>o.isSprite&&o.visible&&o.material.color.getHex()===0x3a3532).length},
         setHp(frac){nights.fort.setTowerHp(frac)},
-        get state(){const f=nights.fort,s=nights.state;return {phase:s.phase,dirs:s.dirs.map(d=>d.id),shields:{...s.shields},walls:Object.fromEntries(Object.entries(f.walls).map(([id,w])=>[id,{count:w.segs.length,broken:w.segs.filter(x=>x.broken).length,visible:w.segs.filter(x=>x.group.visible).length,heights:w.segs.flatMap(x=>x.stakes.map(st=>st.position.y-st.userData.y0))}])),busy:f.busy,scaffold:!!f.scaffold,smoke:this.smoke()}}
+        get state(){const f=nights.fort,s=nights.state;return {phase:s.phase,dirs:s.dirs.map(d=>d.id),gates:JSON.parse(JSON.stringify(s.gates)),walls:Object.fromEntries(Object.entries(f.walls).map(([id,w])=>[id,{count:w.segs.length,broken:w.segs.filter(x=>x.broken).length,visible:w.segs.filter(x=>x.group.visible).length,heights:w.segs.flatMap(x=>x.stakes.map(st=>st.position.y-st.userData.y0))}])),busy:f.busy,scaffold:!!f.scaffold,smoke:this.smoke()}}
       };`;
       await route.fulfill({status:200,contentType:'text/javascript; charset=utf-8',body:source+hook});
     });
@@ -33,18 +33,16 @@ const fs = require('node:fs'), path = require('node:path'), os = require('node:o
     for(const id of ['n1_branch0','n1_branch1','n1_stone0']) {await page.evaluate(id=>window.__fortTest.moveSpot(id),id);await page.keyboard.press('e');await page.waitForFunction(id=>window.__game.ground.world.collected.includes(id),id);}
     const dir=(await state()).dirs[0];
     await page.evaluate(id=>window.__fortTest.moveWall(id),dir);await page.keyboard.press('e');
-    await page.waitForFunction(id=>window.__fortTest.state.walls[id]?.count===5,dir,{timeout:30000});
+    await page.waitForFunction(id=>window.__fortTest.state.walls[id]?.count===6,dir,{timeout:30000});
     await page.waitForFunction(()=>window.__fortTest.state.busy===0,null,{timeout:30000});
     let s=await state();assert.ok(s.walls[dir].heights.every(y=>Math.abs(y)<.01),'stakes finished rising');assert.equal(s.walls[dir].broken,0);
     await page.screenshot({path:path.join(os.tmpdir(),'dragon-fortify-wall.png')});
     await page.evaluate(()=>window.__fortTest.dayEnd());
     await page.waitForFunction(()=>window.__fortTest.state.phase==='night',null,{timeout:30000});
-    for(let i=1;i<=5;i++) {
-      let found=false;for(let j=0;j<20&&!found;j++){found=await page.evaluate(id=>window.__fortTest.prepareRaid(id),dir);if(!found)await page.waitForTimeout(100);}
-      assert.ok(found,'real raid spawned on defended direction');
-      await page.waitForFunction(({id,i})=>window.__fortTest.state.walls[id]?.broken===i && (window.__fortTest.state.shields[id]||0)===5-i,{id:dir,i},{timeout:15000});
-    }
-    s=await state();assert.equal(s.walls[dir].broken,5);
+    let found=false;for(let j=0;j<200&&!found;j++){found=await page.evaluate(id=>window.__fortTest.prepareRaid(id),dir);if(!found)await page.waitForTimeout(100);}
+    assert.ok(found,'ground knight spawned on defended direction');
+    await page.waitForFunction(id=>window.__fortTest.state.gates[id]?.hp<300,dir,{timeout:15000});
+    s=await state();assert.ok(s.gates[dir].hp>=0 && s.gates[dir].hp<300,'knight damages gate');
     await page.screenshot({path:path.join(os.tmpdir(),'dragon-fortify-broken.png')});
     await page.evaluate(()=>window.__fortTest.finishNight());
     await page.waitForFunction(()=>window.__fortTest.state.phase==='morning',null,{timeout:30000});
@@ -52,7 +50,7 @@ const fs = require('node:fs'), path = require('node:path'), os = require('node:o
     assert.equal(await page.evaluate(()=>window.__fortTest.land()),true);
     await page.waitForFunction(()=>{const f=window.__fortTest.form();return f.mode==='landed'&&!f.busy},null,{timeout:30000});
     assert.equal(await page.evaluate(()=>window.__fortTest.morph()),true);
-    await page.waitForFunction(id=>window.__fortTest.state.phase==='day' && window.__fortTest.state.walls[id]?.count===5 && window.__fortTest.state.shields[id]===5,dir,{timeout:60000});
+    await page.waitForFunction(id=>window.__fortTest.state.phase==='day' && window.__fortTest.state.walls[id]?.count===6 && window.__fortTest.state.gates[id]?.hp===300,dir,{timeout:60000});
     assert.equal((await state()).walls[dir].broken,0,'wall restored next day');
     // Separate independent day: real crafting path for repair, not a direct repair() call.
     await page.reload();await page.waitForFunction(()=>!!window.__fortTest);await page.locator('#begin').click();
@@ -66,6 +64,6 @@ const fs = require('node:fs'), path = require('node:path'), os = require('node:o
     await page.evaluate(()=>window.__fortTest.setHp(.59));
     await page.waitForFunction(()=>window.__fortTest.state.smoke>0,null,{timeout:15000});
     assert.deepEqual(errors,[]);
-    console.log('PASS: build→5 rising segments→5 real raid blocks→morning restore; repair scaffold lifecycle; low-HP smoke. Position and wave timing instrumented.');
+    console.log('PASS: build→6 rising segments→ground attack damages gate→morning restore; repair scaffold lifecycle; low-HP smoke. Position and wave timing instrumented.');
   } finally {await context.close();await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});

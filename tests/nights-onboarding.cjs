@@ -16,7 +16,7 @@ const path = require('node:path');
         state: () => ({tutorial:nights.debug.tutorial, phase:nights.state.phase, time:nights.state.t, bag:{...gnd.world.bag}}),
         goSpot: id => { const s=gnd.spots.find(x=>x.id===id); if(!s) throw Error('missing spot '+id); gnd.human.pos.copy(s.pos); },
         goTower: () => gnd.human.pos.copy(gnd.positions.tower),
-        goWall: () => gnd.human.pos.copy(nights.base.pads.find(p => p.type === "wall").pos),
+        goWall: () => gnd.human.pos.copy(nights.base.pads.find(p => p.type === "gate").pos),
         lose: () => nights.debug.lose('test')
       };`;
       await route.fulfill({status: 200, contentType: 'text/javascript; charset=utf-8', body: source + hook});

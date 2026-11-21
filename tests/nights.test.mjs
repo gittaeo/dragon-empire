@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { forecast, angleDiff, DIRS, NIGHT_PLAN, RECIPES_N, DAY_ITEMS, NIGHTS_TOTAL, DAY_SEC, TOWER_START, TOWER_MAX, RAID_DAMAGE, SHIELD_CHARGES, SHIELD_R, buildWaves, parseSeed, rngFor, WAVES_VERSION, RUSH_SPEED, createAssault, assaultStep, assaultResolve, TOWER_ASSAULT } from '../nights.js';
+import { forecast, forecastTotals, WAVE_SCRIPT, angleDiff, DIRS, NIGHT_PLAN, RECIPES_N, DAY_ITEMS, NIGHTS_TOTAL, DAY_SEC, TOWER_START, TOWER_MAX, RAID_DAMAGE, SHIELD_CHARGES, SHIELD_R, buildWaves, parseSeed, rngFor, WAVES_VERSION, RUSH_SPEED, createAssault, assaultStep, assaultResolve, TOWER_ASSAULT } from '../nights.js';
 
 test('forecast covers all twelve ordered pairs of distinct directions', () => {
   const pairs = new Set();
@@ -57,31 +57,27 @@ test('parseSeed accepts only unsigned 32-bit decimal strings', () => {
   for (const [input, expected] of [['0', 0], ['0001', 1], ['4294967295', 4294967295], [null, null], ['', null], ['-1', null], ['1.0', null], [' 1', null], ['4294967296', null], ['00000000000', null]]) assert.equal(parseSeed(input), expected, String(input));
 });
 
-test('seeded waves are deterministic and preserve forecast and night constraints', () => {
-  const patterns = new Set();
+test('v2 scripted waves match forecast totals and fixed first-night composition', () => {
+  const kinds = ['moth', 'knight', 'rider', 'siege'];
   for (let seed = 0; seed < 2000; seed++) for (let night = 1; night <= 3; night++) {
     const dirs = forecast(rngFor(seed, night, 'forecast'));
-    const args = {night, runSeed: seed, dirs};
-    const result = buildWaves(args), plan = NIGHT_PLAN(night);
+    const args = {night, runSeed: seed, dirs}, result = buildWaves(args);
     assert.deepEqual(result, buildWaves(args));
-    assert.equal(result.version, WAVES_VERSION);
-    assert.equal(result.seed, seed);
-    assert.equal(result.waves.length, plan.waves);
-    patterns.add(result.pattern);
-    result.waves.forEach((wave, i) => {
-      assert.equal(wave.index, i);
-      assert.ok(dirs.some(d => d.id === wave.dir));
-      assert.equal(wave.count, plan.size);
-      assert.equal(wave.hunters, plan.hunters);
-      assert.ok(wave.hunters >= 0 && wave.hunters < wave.count);
-      assert.ok([null, 'escort', 'rush'].includes(wave.modifier));
-      assert.equal(wave.speedMultiplier, wave.modifier === 'rush' ? RUSH_SPEED : 1);
-      if (wave.modifier === 'rush') assert.equal(i, plan.waves - 1);
-      if (night === 1) { assert.equal(wave.hunters, 0); assert.equal(wave.modifier, null); }
+    assert.equal(result.version, 2); assert.equal(result.seed, seed);
+    assert.equal(result.waves.length, WAVE_SCRIPT[night].length);
+    const totals = {};
+    result.waves.forEach((w, i) => {
+      assert.equal(w.index, i); assert.ok(dirs.some(d => d.id === w.dir));
+      assert.equal(w.count, kinds.reduce((sum,k) => sum+w[k], 0));
+      assert.equal(w.hunters, w.rider);
+      for (const k of kinds) assert.ok(Number.isInteger(w[k]) && w[k] >= 0);
+      const t = totals[w.dir] ||= Object.fromEntries(kinds.map(k => [k,0]));
+      for (const k of kinds) t[k] += w[k];
+      if(night === 1 && w.knight) assert.equal(w.dir, dirs[0].id);
     });
-    if (night === 1) assert.equal(new Set(result.waves.map(w => w.dir)).size, 2);
+    assert.deepEqual(forecastTotals(result), totals);
+    if (night === 1) assert.deepEqual(kinds.map(k => result.waves.reduce((sum,w)=>sum+w[k],0)), [19,3,0,0]);
   }
-  assert.deepEqual([...patterns].sort(), ['alternate', 'focus']);
 });
 
 test('consuming forecast or spawn stream does not change the pattern stream', () => {
