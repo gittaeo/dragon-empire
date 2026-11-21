@@ -65,11 +65,13 @@ export function angleDiff(a, b) { let d = a - b; while (d > Math.PI) d -= 2 * Ma
 export function createNights(ctx) {
   const {scene, gnd, tod} = ctx, towerPos = gnd.positions.tower.clone(), v = new T.Vector3();
   const runSeed = (ctx.seed ?? Math.floor(Math.random() * 0x100000000)) >>> 0;
-  const S = {phase: 'day', night: 1, t: DAY_SEC, towerHp: TOWER_MAX, dirs: forecast(rngFor(runSeed, 1, 'forecast')), shields: {}, waveI: 0, waveT: 0, raiders: 0, over: false, crafted: 0, best: null, seed: runSeed, plan: null, assault: null};
+  const S = {phase: 'day', night: 1, t: DAY_SEC, towerHp: TOWER_MAX, dirs: forecast(rngFor(runSeed, 1, 'forecast')), shields: {}, waveI: 0, waveT: 0, raiders: 0, over: false, crafted: 0, best: null, seed: runSeed, plan: null, assault: null,
+    stats: {minTower: TOWER_MAX, blocked: 0, raidHits: 0, intercepted: 0, impacts: 0, crafted: []}}; // 플레이테스트 기록용 (PLAYTEST_KIT.md)
   console.info(`[세 밤] seed=${runSeed} waves v${WAVES_VERSION}`);
   // 탑 HP 바
   const bar = document.createElement('div'); bar.id = 'towerbar'; bar.innerHTML = '<b>풍향탑</b><i><span></span></i><small></small>'; document.getElementById('hud').appendChild(bar);
   const setBar = () => {
+    S.stats.minTower = Math.min(S.stats.minTower, Math.max(0, Math.ceil(S.towerHp)));
     bar.querySelector('span').style.width = Math.max(0, S.towerHp) + '%'; bar.classList.toggle('low', S.towerHp < 35);
     const sh = Object.entries(S.shields).filter(([, n]) => n > 0).map(([id, n]) => `방어막 ${DIRS.find(d => d.id === id).name} ${'●'.repeat(n)}${'○'.repeat(SHIELD_CHARGES - n)}`).join(' · ');
     bar.querySelector('small').textContent = Math.ceil(Math.max(0, S.towerHp)) + ' / ' + TOWER_MAX + (sh ? ' · ' + sh : '');
@@ -168,7 +170,7 @@ export function createNights(ctx) {
       e.position.lerpVectors(a.start, towerTop(), k); e.lookAt(towerPos); e.rotateY(Math.PI);
       pathGeo.attributes.position.setXYZ(0, e.position.x, e.position.y, e.position.z); const tt = towerTop(); pathGeo.attributes.position.setXYZ(1, tt.x, tt.y, tt.z); pathGeo.attributes.position.needsUpdate = true; pathLine.visible = true;
       if (k >= 1) { const ev = assaultResolve(S.assault, a.id, 'impact'); ctx.removeEnemy(e);
-        if (ev) { S.towerHp -= cfg.damage; setBar(); ctx.burst(towerTop(), 0xff8a1a, 80, 30, 1.8); ctx.shake(.8); ctx.sfx?.('player_hurt', towerPos); onAssaultEvent(ev); if (S.towerHp <= 0) lose('루세르나의 등불이 풍향탑을 무너뜨렸습니다'); } }
+        if (ev) { S.stats.impacts++; S.towerHp -= cfg.damage; setBar(); ctx.burst(towerTop(), 0xff8a1a, 80, 30, 1.8); ctx.shake(.8); ctx.sfx?.('player_hurt', towerPos); onAssaultEvent(ev); if (S.towerHp <= 0) lose('루세르나의 등불이 풍향탑을 무너뜨렸습니다'); } }
       return true;
     }
     const r = u.raid; if (!r) return false;
@@ -176,14 +178,14 @@ export function createNights(ctx) {
     e.position.addScaledVector(to, r.speed * dt); e.position.y = Math.max(e.position.y, ctx.groundAt(e.position.x, e.position.z) + 8);
     e.lookAt(towerPos); e.rotateY(Math.PI);
     const sh = S.shields[r.dir.id];
-    if (sh > 0 && d < SHIELD_R) { tutorTower(true); S.shields[r.dir.id]--; const m = shieldMesh[r.dir.id]; if (m) m.material.opacity = .6; setBar(); ctx.burst(e.position, 0x9ff0ff, 30, 20, 1); ctx.removeEnemy(e); S.raiders--; ctx.sfx?.('skill_shield'); if (S.shields[r.dir.id] <= 0) { scene.remove(shieldMesh[r.dir.id]); ctx.banner('방어막 소진', r.dir.name, 1.2); } return true; }
-    if (d < 22) { tutorTower(false); S.towerHp -= RAID_DAMAGE; setBar(); ctx.burst(e.position, 0xff6a2a, 50, 25, 1.4); ctx.shake(.5); ctx.sfx?.('player_hurt', e.position); ctx.removeEnemy(e); S.raiders--; if (S.towerHp <= 0) lose('풍향탑이 무너졌습니다'); return true; }
+    if (sh > 0 && d < SHIELD_R) { tutorTower(true); S.stats.blocked++; S.shields[r.dir.id]--; const m = shieldMesh[r.dir.id]; if (m) m.material.opacity = .6; setBar(); ctx.burst(e.position, 0x9ff0ff, 30, 20, 1); ctx.removeEnemy(e); S.raiders--; ctx.sfx?.('skill_shield'); if (S.shields[r.dir.id] <= 0) { scene.remove(shieldMesh[r.dir.id]); ctx.banner('방어막 소진', r.dir.name, 1.2); } return true; }
+    if (d < 22) { tutorTower(false); S.stats.raidHits++; S.towerHp -= RAID_DAMAGE; setBar(); ctx.burst(e.position, 0xff6a2a, 50, 25, 1.4); ctx.shake(.5); ctx.sfx?.('player_hurt', e.position); ctx.removeEnemy(e); S.raiders--; if (S.towerHp <= 0) lose('풍향탑이 무너졌습니다'); return true; }
     return true;
   }
   function startFinale() {
     S.phase = 'crown'; tod.setHour(23.5); ctx.clearNightEnemies(); ctx.crown(); // 엠페러 진화 + 기존 대관식 연출
   }
-  function onKill(e) { tutorKill(); if (e.userData.raid) S.raiders--; if (e.userData.assault && S.assault) onAssaultEvent(assaultResolve(S.assault, e.userData.assault.id, 'intercepted')); }
+  function onKill(e) { tutorKill(); if (e.userData.raid) S.raiders--; if (e.userData.assault && S.assault) { S.stats.intercepted++; } if (e.userData.assault && S.assault) onAssaultEvent(assaultResolve(S.assault, e.userData.assault.id, 'intercepted')); }
   function lose(why) { if (S.over) return; S.over = true; setWarn(false); ctx.end(false, why, S); }
   function win() { if (S.over) return; S.over = true; setWarn(false); ctx.end(true, `${NIGHTS_TOTAL}번째 밤까지 풍향탑을 지켰습니다`, S); }
 
@@ -209,13 +211,13 @@ export function createNights(ctx) {
     menu.querySelectorAll('[data-i]').forEach(bt => bt.onclick = () => { const [id, d] = opts[+bt.dataset.i]; const r = RECIPES_N[id]; if (!has(r.items)) return; pay(r.items);
       if (id === 'repair') { S.towerHp = Math.min(TOWER_MAX, S.towerHp + 30); setBar(); ctx.burst(towerPos.clone().add(v.set(0, 6, 0)), 0xffd27a, 50, 10, .8); }
       else { S.shields[d.id] = SHIELD_CHARGES; makeShield(d); setBar(); }
-      ctx.sfx?.('levelup'); S.crafted++; menu.hidden = true; tutorCrafted(id, d); ctx.banner(r.name + (d ? ' · ' + d.name : ''), r.desc, 1.6); gnd.save(); });
+      ctx.sfx?.('levelup'); S.crafted++; S.stats.crafted.push(`${S.night}:${id === 'repair' ? '수리' : d.name}`); menu.hidden = true; tutorCrafted(id, d); ctx.banner(r.name + (d ? ' · ' + d.name : ''), r.desc, 1.6); gnd.save(); });
     menu.querySelector('[data-x]').onclick = () => { menu.hidden = true; tutorMenuClosed(); };
   }
 
   // ── 첫 낮·밤 안내 (docs/NIGHTS_ONBOARDING.md, Codex 설계) — 실제 행동으로만 진행, 시간은 멈추지 않음. 1번째 낮·밤에만 ──
   const TOUCH = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
-  const K = TOUCH ? {move: '왼쪽 조이스틱 이동', look: '화면 드래그 시점', use: '상호작용 버튼', breath: '브레스 버튼'} : {move: 'WASD 이동', look: '마우스 오른쪽 드래그 시점', use: 'E', breath: '클릭/F 브레스'};
+  const K = TOUCH ? {move: '왼쪽 조이스틱 이동', look: '오른쪽 화면 드래그 시점', use: '상호작용 버튼', breath: 'FIRE(브레스) 버튼'} : {move: 'WASD 이동', look: '마우스 오른쪽 드래그 시점', use: 'E', breath: '클릭/F 브레스'};
   const tutorEl = document.createElement('div'); tutorEl.id = 'tutor'; tutorEl.hidden = true; document.getElementById('hud').appendChild(tutorEl);
   const TU = {step: 0, hide: 0, bag0: 0, hit: false, block: false};
   const bagSum = () => Object.values(gnd.world.bag || {}).reduce((a, n) => a + (n || 0), 0);

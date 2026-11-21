@@ -318,6 +318,10 @@ function endNights(won, why, S) {
   $('#result-label').textContent = 'THREE NIGHTS OF THE WIND TOWER';
   $('#result-title').textContent = won ? '풍향탑을 지켰습니다' : why;
   $('#result-desc').textContent = `${won ? why : rec.night + '번째 밤에서 멈췄습니다'} · 풍향탑 ${rec.tower}/100 · ${kills}마리 처치 · ${mm}:${ss} · seed ${S.seed}${better ? ' · 최고 기록!' : best ? ' · 최고 ' + (best.won ? '승리' : best.night + '번째 밤') : ''}`;
+  // 플레이테스트 기록용 통계 (docs/PLAYTEST_KIT.md 기록표)
+  const st = S.stats || {}; const stat = `최저 탑 ${st.minTower ?? '-'} · 방어막 차단 ${st.blocked ?? 0} · 탑 피격 ${st.raidHits ?? 0} · 등불 요격 ${st.intercepted ?? 0}/명중 ${st.impacts ?? 0} · 제작 ${(st.crafted || []).join(', ') || '없음'}`;
+  let el = $('#result-stats'); if (!el) { el = document.createElement('small'); el.id = 'result-stats'; el.className = 'note'; $('#result-desc').after(el); } el.textContent = stat;
+  console.info('[세 밤 결과]', JSON.stringify({...rec, seed: S.seed, stats: st}));
   $('#restart').innerHTML = '다시 도전 <span>↗</span>'; $('#return').hidden = true; $('#result').hidden = false;
 }
 function finish(kind) {
