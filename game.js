@@ -60,6 +60,7 @@ const animCam = params.get('animcam'), animDist = +(params.get('animdist') || 16
 
 // ---------- 상태 ----------
 let playing = false, paused = false, over = false, path = '', level = 1, xp = 0, kills = 0, lateKills = 0, rank = 0, rankXp = 0;
+let camFocus = null; // {pos, pitch, t}
 let hp = maxHpForLevel(1), maxHp = hp, invuln = 0, hitTimer = 0, yaw = 0, pitch = 0, fireTimer = 0, time = 0, runTime = 0;
 let mouseDown = false, orbiting = false, flySpeed = 0, idleTime = 0, gliding = false, scaleNow = 1, camDistNow = STAGE.camDist[0];
 let combo = 0, comboTimer = 0, hitStopT = 0, slowT = 0, slowK = 1, shakeAmp = 0, diveTime = 0, shockCd = 0;
@@ -633,6 +634,10 @@ function loop() {
     if (!grounded) { const f = updateFlight(dt); boosting = f.boosting; fireBreath(dt, f.firing); updateEnemies(dt); if (!over) updateBoss(dt); if (!over) updateElite(dt); if (!over) updateBolts(dt); }
     else { if (nights) for (const e of [...enemies]) nights.raidStep(e, dt); // 밤에 착륙해도 습격자는 탑으로 계속 옴(Codex 리뷰)
       player.rotation.x *= Math.exp(-6 * raw); player.rotation.y = yaw; flySpeed = 0; animIn.fwd = animIn.side = 0; animIn.up = animIn.down = animIn.boost = false; }
+    if (camFocus && (camFocus.t -= raw) > 0 && gnd.mode === 'human' && !gnd.busy) { // 건설 지점 바라보기 (세 밤: 지은 것이 화면에 들어오게)
+      const h = gnd.human.pos, ty = Math.atan2(-(camFocus.pos.x - h.x), -(camFocus.pos.z - h.z)), k = 1 - Math.exp(-4 * raw);
+      yaw += Math.atan2(Math.sin(ty - yaw), Math.cos(ty - yaw)) * k; pitch += (camFocus.pitch - pitch) * k;
+    } else camFocus = null;
     gnd.update(dt, raw, keys, touch.state, camera); updateQuestHud();
     tickPlay(growth, dt); if ((discoverT -= raw) <= 0) { discoverT = .4; checkDiscovery(); } updateTrial(dt); quests?.update(dt); nights?.update(dt);
     if (xpToast > 0 && (xpToast -= raw) <= 0) $('#xptoast').classList.remove('on');
@@ -752,7 +757,7 @@ const _fwd = new T.Vector3();
 if (NIGHTS) {
   tod.setSpeed(0); eliteCd = Infinity; bossCountdown = Infinity; if (!path) path = 'flame'; for (const k in growth.trials) growth.trials[k] = true;
   document.body.classList.add('nights');
-  nights = createNights({seed: parseSeed(params.get('seed')), scene, gnd, tod, camera, raiders: () => enemies.filter(e => e.userData.raid || e.userData.assault), stopSfx: name => audio.stop?.(name), bossPos: () => boss?.position, banner, sfx, burst, makeEnemy, removeEnemy, groundAt: ground, shake: a => { shakeAmp = Math.max(shakeAmp, a); },
+  nights = createNights({focus: (pos, pitch = .15, t = 2.6) => { camFocus = {pos: pos.clone(), pitch, t}; }, seed: parseSeed(params.get('seed')), scene, gnd, tod, camera, raiders: () => enemies.filter(e => e.userData.raid || e.userData.assault), stopSfx: name => audio.stop?.(name), bossPos: () => boss?.position, banner, sfx, burst, makeEnemy, removeEnemy, groundAt: ground, shake: a => { shakeAmp = Math.max(shakeAmp, a); },
     nightEnemies: () => enemies.filter(e => e.userData.nightWave).length,
     morning: n => { level = n === 1 ? 10 : 20; xp = 0; refresh(); hp = maxHp; invuln = 2; burst(player.position, 0xffdc88, 120, 40, fxScale()); sfx('evolve'); ambStage = stage(); audio.startAmbience(ambStage);
       banner(STAGE_NAMES()[stage() - 1] + '(으)로 진화', '밤을 버틴 숨결이 몸을 키웁니다', 3); refresh(); },

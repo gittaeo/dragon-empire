@@ -215,8 +215,8 @@ export function createNights(ctx) {
     menu.hidden = false; tutorMenuOpened();
     menu.querySelectorAll('[data-i]').forEach(bt => bt.onclick = () => { const [id, d] = opts[+bt.dataset.i]; const r = RECIPES_N[id]; if (!has(r.items)) return; pay(r.items);
       const from = gnd.human?.pos ? new T.Vector3().copy(gnd.human.pos) : towerPos.clone();
-      if (id === 'repair') { S.towerHp = Math.min(TOWER_MAX, S.towerHp + 30); setBar(); fort.carry(from, towerPos.clone().add(new T.Vector3(0, 5, 0)), r.items, () => fort.repair()); }
-      else { S.shields[d.id] = SHIELD_CHARGES; setBar(); const c = towerPos.clone().addScaledVector(dirVec(d.a).clone(), SHIELD_R); c.y = ctx.groundAt(c.x, c.z) + 3; fort.carry(from, c, r.items, () => makeShield(d)); }
+      if (id === 'repair') { S.towerHp = Math.min(TOWER_MAX, S.towerHp + 30); setBar(); ctx.focus?.(towerPos.clone().add(new T.Vector3(0, 6, 0)), .35, 3.6); fort.carry(from, towerPos.clone().add(new T.Vector3(0, 5, 0)), r.items, () => fort.repair()); }
+      else { S.shields[d.id] = SHIELD_CHARGES; setBar(); const c = towerPos.clone().addScaledVector(dirVec(d.a).clone(), SHIELD_R); c.y = ctx.groundAt(c.x, c.z) + 3; ctx.focus?.(c, .12, 3.2); fort.carry(from, c, r.items, () => makeShield(d)); }
       ctx.sfx?.('levelup'); S.crafted++; S.stats.crafted.push(`${S.night}:${id === 'repair' ? '수리' : d.name}`); menu.hidden = true; tutorCrafted(id, d); ctx.banner(r.name + (d ? ' · ' + d.name : ''), r.desc, 1.6); gnd.save(); });
     menu.querySelector('[data-x]').onclick = () => { menu.hidden = true; tutorMenuClosed(); };
   }
