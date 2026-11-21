@@ -46,17 +46,33 @@ const glbs = [...files].filter(f => f.endsWith('.glb'));
 const glbTotal = glbs.reduce((s, f) => s + fs.statSync(path.join(out, f)).size, 0);
 const longest = [...files].reduce((a, f) => f.length > a.length ? f : a, '');
 
-// 4) ZIP (Windows: PowerShell Compress-Archive)
+// 4) ZIP — PowerShell(실행 정책 우회) → Windows tar(bsdtar) 순으로 시도. 못 만들면 빌드 실패 (Codex 출시 QA)
 fs.rmSync(zip, {force: true});
+// tar(bsdtar) 우선: Windows PowerShell 5.1 Compress-Archive는 ZIP 항목 경로를 '\'로 저장해 리눅스 서버(itch)에서 경로가 깨질 수 있음
+// (PATH의 tar는 Git의 GNU tar일 수 있어 'D:'를 원격 호스트로 해석 → Windows 내장 bsdtar 경로를 우선 사용)
+const winTar = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
+const zippers = [
+  [fs.existsSync(winTar) ? winTar : 'bsdtar', ['-a', '-c', '-f', zip, ...fs.readdirSync(out)], {cwd: out}],
+  ['powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', `Compress-Archive -Path '${out}\\*' -DestinationPath '${zip}' -CompressionLevel Optimal`], {}],
+];
+// ZIP 중앙 디렉터리의 항목 이름 (경로 구분자 검사용)
+const zipNames = file => { const b = fs.readFileSync(file), names = []; for (let i = b.length - 22; i >= 0; i--) if (b.readUInt32LE(i) === 0x06054b50) { let p = b.readUInt32LE(i + 16); const n = b.readUInt16LE(i + 10); for (let k = 0; k < n; k++) { const ln = b.readUInt16LE(p + 28), ex = b.readUInt16LE(p + 30), cm = b.readUInt16LE(p + 32); names.push(b.subarray(p + 46, p + 46 + ln).toString()); p += 46 + ln + ex + cm; } break; } return names; };
 let zipSize = null;
-try {
-  execFileSync('powershell.exe', ['-NoProfile', '-Command', `Compress-Archive -Path '${out}\\*' -DestinationPath '${zip}' -CompressionLevel Optimal`], {stdio: 'inherit'});
-  zipSize = fs.statSync(zip).size;
-} catch (e) { console.warn('ZIP 생성 실패(폴더 빌드는 완료): ' + e.message); }
+for (const [cmd, args, opt] of zippers) {
+  try {
+    execFileSync(cmd, args, {stdio: 'pipe', ...opt});
+    const names = fs.existsSync(zip) ? zipNames(zip) : [];
+    const bad = names.filter(n => n.includes('\\'));
+    if (!names.includes('index.html')) throw new Error('최상위 index.html 없음');
+    if (bad.length) throw new Error(`역슬래시 경로 ${bad.length}개 (예: ${bad[0]})`);
+    zipSize = fs.statSync(zip).size; console.log(`ZIP: ${path.basename(cmd)} · 항목 ${names.length}개`); break;
+  } catch (e) { console.warn(`ZIP 실패(${path.basename(cmd)}): ${String(e.stderr || e.message).split(/\r?\n/)[0]}`); fs.rmSync(zip, {force: true}); }
+}
+if (!zipSize) { console.error('ZIP을 만들지 못했습니다 — 출시 산출물 불완전'); process.exitCode = 1; }
 
 // 5) itch 한도 점검 (1000개·500MB·단일 200MB·경로 240자) — 게시 직전 공식 문서 재확인 필요
 const report = {files: files.size, total: mb(total), zip: zipSize ? mb(zipSize) : null, largest: `${largest[0]} ${mb(largest[1])}`, glb: `${glbs.length}개 ${mb(glbTotal)}`, longestPath: `${longest.length}자`};
-const ok = files.size <= 1000 && total <= 500 * 1048576 && largest[1] <= 200 * 1048576 && longest.length <= 240;
+const ok = !!zipSize && files.size <= 1000 && total <= 500 * 1048576 && largest[1] <= 200 * 1048576 && longest.length <= 240;
 console.log(JSON.stringify(report, null, 1));
 console.log(ok ? 'itch 한도 이내' : 'itch 한도 초과 — 확인 필요');
 if (!ok) process.exitCode = 1;
