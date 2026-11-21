@@ -1,5 +1,9 @@
 # HANDOFF 로그 (최신이 위)
 
+## 2026-11-21 — [codex] 출시 ZIP·WebGL·지연 로딩 재검증, 첫 낮 안내 설계
+**한 일**: `tests/release-build.cjs`에 ZIP 중앙 디렉터리의 슬래시·최상위 index·중복·출시 파일 목록 일치 검사. `docs/NIGHTS_ONBOARDING.md` 첫 낮 단계별 안내·트리거·예외 설계.
+**테스트**: 9d747a9 기준 WebGL/느린 JS 감사 각각 통과, ZIP 파일 50개·디렉터리 10개 일치. WebGL 안내는 보이지만 context 생성 pageerror 발생. 느린 JS 4초 지연에 로딩 19/39 및 시작 비활성 후 활성 확인. 같은 origin iframe에서 낮 단축 없이 첫 밤까지 스모크 통과·실패 요청/오류 0. 실제 itch 교차 origin·GLB 실패·25초 폴백·사람 손 플레이는 미검증.
+
 ## 2026-11-21 — [codex] 출시 iframe·실패 감사·에셋 출처
 **한 일**: `tests/release-build.cjs` 빌드 후 같은 origin iframe 스모크 및 느린 JS/WebGL 비활성 진단 추가. `docs/ASSET_LICENSES.md`에 승인 14 GLB·8 텍스처 출처와 미확인 조건 정리.
 **테스트**: 1bfd60c 빌드 폴더에서 시간 단축 없이 첫 밤까지 오류·실패 요청 0. 동일 실행에서 ZIP 생성 실패를 스크립트가 성공 종료해 이후 테스트는 ZIP 존재 확인하도록 수정(수정 후 전체 성공 미확인). WebGL 비활성 때 이전 코드에서 시작 화면만 보이고 context 오류. 느린 네트워크 캡처는 Claude 미커밋 로딩 수정이 섞인 상태에서 진행률 39/49 표시 확인. 캡처와 재현은 보드 참조.

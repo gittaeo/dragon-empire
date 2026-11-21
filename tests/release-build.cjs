@@ -12,7 +12,28 @@ const dist = path.join(root, 'dist', 'itch');
 const audit = process.env.RELEASE_AUDIT || '';
 if (audit && !['slow', 'webgl'].includes(audit)) throw Error('RELEASE_AUDIT must be slow or webgl');
 execFileSync(process.execPath, [path.join(root, 'scripts/build-itch.mjs')], {cwd: root, stdio: 'inherit'});
-if (!audit) assert.ok(fs.existsSync(path.join(root, 'dist', 'dragon-empire-three-nights.zip')), 'release build must produce the ZIP, even if the build script exits successfully');
+const zip = path.join(root, 'dist', 'dragon-empire-three-nights.zip');
+assert.ok(fs.existsSync(zip), 'release build must produce the ZIP');
+// Read central-directory names directly: tar may normalize backslashes during listing.
+const data = fs.readFileSync(zip); let end = -1;
+for (let i = data.length - 22; i >= Math.max(0, data.length - 65557); i--) {
+  if (data.readUInt32LE(i) === 0x06054b50 && i + 22 + data.readUInt16LE(i + 20) === data.length) { end = i; break; }
+}
+assert.ok(end >= 0, 'ZIP end-of-central-directory exists');
+const count = data.readUInt16LE(end + 10), entries = []; let pos = data.readUInt32LE(end + 16);
+for (let i = 0; i < count; i++) {
+  assert.equal(data.readUInt32LE(pos), 0x02014b50, 'ZIP central entry signature');
+  const nameLen = data.readUInt16LE(pos + 28), extraLen = data.readUInt16LE(pos + 30), commentLen = data.readUInt16LE(pos + 32);
+  entries.push(data.subarray(pos + 46, pos + 46 + nameLen).toString('utf8'));
+  pos += 46 + nameLen + extraLen + commentLen;
+}
+assert.ok(entries.includes('index.html'), 'index.html is at ZIP root');
+assert.ok(entries.every(name => !name.includes('\\')), 'ZIP entry names use forward slashes');
+const diskFiles = dir => fs.readdirSync(path.join(dist, dir), {withFileTypes: true}).flatMap(e => e.isDirectory() ? diskFiles(path.posix.join(dir, e.name)) : [path.posix.join(dir, e.name)]);
+const archiveFiles = entries.filter(name => !name.endsWith('/'));
+assert.equal(new Set(archiveFiles).size, archiveFiles.length, 'ZIP has no duplicate files');
+assert.deepEqual([...archiveFiles].sort(), diskFiles('').sort(), 'ZIP file names and count match release directory');
+console.log(`ZIP verified: ${archiveFiles.length} files, ${entries.length - archiveFiles.length} directory entries`);
 const mime = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.jpg': 'image/jpeg', '.glb': 'model/gltf-binary'};
 const server = http.createServer((req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
@@ -24,7 +45,7 @@ const server = http.createServer((req, res) => {
 });
 (async () => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  const flags = audit === 'webgl' ? ['--disable-gpu', '--disable-webgl', '--disable-webgl2'] : ['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist'];
+  const flags = audit === 'webgl' ? ['--disable-gpu', '--disable-3d-apis', '--disable-webgl', '--disable-webgl2'] : ['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist'];
   const browser = await chromium.launch({headless: true, executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', args: [...flags, '--no-sandbox']});
   try {
     const page = await browser.newPage({viewport: {width: 1280, height: 800}}), failures = [], errors = [];
@@ -38,9 +59,11 @@ const server = http.createServer((req, res) => {
       await frame.locator('#begin').waitFor({state: 'visible', timeout: 15000});
       await page.waitForTimeout(1000); await page.screenshot({path: path.join(os.tmpdir(), 'dragon-release-slow.png')});
       await frame.getByRole('button', {name: /첫 낮 시작/}).waitFor({state: 'visible', timeout: 90000});
-      console.log('SLOW screenshot:', path.join(os.tmpdir(), 'dragon-release-slow.png'), 'release mode initialized after delayed scripts');
+      await frame.locator('#begin:enabled').waitFor({state: 'visible', timeout: 90000});
+      console.log('SLOW screenshot:', path.join(os.tmpdir(), 'dragon-release-slow.png'), 'start enabled after delayed scripts');
     } else if (audit === 'webgl') {
       await page.waitForTimeout(5000); await page.screenshot({path: path.join(os.tmpdir(), 'dragon-release-webgl.png')});
+      assert.match(await frame.locator('body').innerText(), /WebGL/);
       console.log('WEBGL screenshot:', path.join(os.tmpdir(), 'dragon-release-webgl.png'), 'errors:', JSON.stringify(errors));
     } else {
       await frame.getByRole('button', {name: /첫 낮 시작/}).waitFor({state: 'visible', timeout: 60000});

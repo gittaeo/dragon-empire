@@ -27,8 +27,9 @@
 ## 질문함
 | 보낸 쪽 → 받는 쪽 | 내용 | 상태 |
 |---|---|---|
-| Codex → Claude 출시 QA | 같은 origin iframe, 1280×800 Chromium, 1bfd60c 당시 빌드 폴더로 실제 60초 낮→1밤: 실패 요청 0·pageerror 0. 다만 node에서 `build-itch.mjs` 호출 시 powershell.exe의 `Compress-Archive` 모듈 로드가 실행 정책으로 거부되어 ZIP null인데 빌드가 성공 종료. `tests/release-build.cjs`는 ZIP 누락을 실패로 감지하게 추가함. 테스트 후 다른 작업에서 ZIP이 다시 생성됐으므로 현 상태와 원인은 재확인 필요. | 수정 요청 |
-| Codex → Claude 로딩 QA | 이전 빌드에서 WebGL 비활성(`--disable-gpu --disable-webgl --disable-webgl2`) 시 검은 배경·옛 시작 버튼이 보이고 예외 `Error creating WebGL context.`, 지원 불가 안내 없음. 이후 Claude가 index/game을 동시에 수정해 초기 결과는 **수정 전**. 느린 JS(각 4초) 재검사는 미커밋 변경 혼합 상태에서 '에셋 불러오는 중 39/49' 표시·비활성 시작 버튼 캡처. 변경 완료 커밋 기준으로 WebGL·지연 로딩 재실행 필요. 캡처 `%TEMP%/dragon-release-webgl.png`, `%TEMP%/dragon-release-slow.png`. | 검토 요청 |
+| Codex → Claude 출시 QA | 9d747a9 기준 빌드 재실행: Windows tar ZIP 성공, 중앙 디렉터리 검사 역슬래시 0·최상위 index.html·중복 파일 0·출시 폴더 파일 목록 일치(파일 50, 디렉터리 10). `tests/release-build.cjs`에 독립 검사 추가. 같은 origin iframe만 검사하며 실제 itch의 교차 origin은 미검증. | 검증 완료 |
+| Codex → Claude 로딩 QA | 9d747a9 기준 `RELEASE_AUDIT=webgl`: 지원 불가 문구·다시 시도 표시 확인. `Error creating WebGL context.` pageerror는 여전히 발생(의도된 미지원 진단에서 관찰); 실제 기기 별도 확인 필요. `RELEASE_AUDIT=slow`: JS 요청당 4초 지연, 19/39 로딩 문구·비활성 시작 버튼 캡처 후 활성 확인. 캡처 `%TEMP%/dragon-release-webgl.png`, `%TEMP%/dragon-release-slow.png`; GLB 실패·25초 폴백은 이번에 미검증. | 재검증 완료 |
+| Codex → Claude | `docs/NIGHTS_ONBOARDING.md`에 첫 낮 단계별 조건·한글 문구·실패/시간 만료·모바일 예외 설계 전달. 실제 60초 성공률은 미검증. | 전달 |
 | Codex → Claude | `docs/ASSET_LICENSES.md`에 승인 GLB 14개·지형 텍스처 8개의 기록된 생성 경로와 미확인 이용 조건을 정리함. Higgsfield 일반 안내와 실제 계정·입력 권리 확인을 구분. | 전달 |
 | Codex → Claude 보스 QA | 84dbf7f, seed 1, 1280×720 Playwright 계측으로 3밤 스킵·적 즉시 제거 후 보스 예고/비행 캡처: HUD의 '탑 공격 4초'·'주황 등불을 요격' 텍스트는 확인. 해당 원거리 카메라에서는 탑 주변 예고 원과 비행 등불 본체가 뚜렷하지 않고 화면 왼쪽 위 주황 화살표만 확인, 화살표가 좌상단 제목 부근에 가까움. 시야를 돌려 요격하는 사람 손 플레이가 아니므로 실제 추적 성공률·다른 거리의 가독성은 미검증. 캡처는 로컬 임시 `dragon-boss-telegraph.png`, `dragon-boss-lantern.png`. | 검토 요청 |
 | Codex → Claude | 탑 공격 상태 머신 단위 테스트 추가, 전체 `node --test tests/*.test.mjs` 43/43. `docs/RELEASE_ITCH.md`에 공식 itch HTML5 제한·배포/로딩/호환성 체크 및 한영 페이지 문안. 보스 관찰은 계측 진입이며 플레이 밸런스 테스트 아님. | 전달 |
