@@ -165,11 +165,14 @@ export function createGround(ctx) {
   human = person(0x7a2a1a, 0xeec9a5, 0x2a1a12); human.visible = false; scene.add(human);
   const ember = new T.Mesh(new T.SphereGeometry(.07, 8, 6), new T.MeshBasicMaterial({color: 0xffa23a})); ember.position.set(0, 1.25, -.29); human.add(ember);
   // --- 승인된 여성 폴리모프 모델(Codex 제작, manifest 'polymorph_female'). 클립이 없어 뼈대를 절차적으로 움직여 걷게 함
-  let hero = null, heroAmt = 0; const bones = {}, rest = {}, axis = {};
+  let hero = null, heroAmt = 0, heroMixer = null, heroWalk = null; const bones = {}, rest = {}, axis = {};
   const BONES = ['Hips', 'Spine', 'Spine01', 'Spine02', 'neck', 'LeftUpLeg', 'LeftLeg', 'RightUpLeg', 'RightLeg', 'LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm'];
   async function loadHero() {
     if (!ctx.loadModel || hero) return false;
-    const m = await ctx.loadModel('polymorph_female', {height: 1.75, feet: true}); if (!m) return false;
+    // 미리보기(?hero=rerig): 정면 보정 후 재리깅한 모델 + 여성 걷기 클립 (assets/pending, 사용자 승인 전 기본값 아님)
+    const PREVIEW = new URLSearchParams(location.search).get('hero') === 'rerig';
+    const m = await ctx.loadModel('polymorph_female', {height: 1.75, feet: true, file: PREVIEW ? 'pending/polymorph_female_rerig2_walk.glb' : null}); if (!m) return false;
+    if (PREVIEW && m.userData.animations?.length) { heroMixer = new T.AnimationMixer(m); heroWalk = heroMixer.clipAction(m.userData.animations[0]); heroWalk.play(); heroWalk.setEffectiveWeight(0); for (const c of human.children) c.visible = false; human.add(m); hero = m; return true; }
     // 이 GLB는 실제로 모델 +X를 바라봄(발끝 측정) — manifest의 '+Z' 보정만으로는 옆을 봐서 게 걸음이 됨.
     // 진행 방향(-Z)을 보도록 -90° 더 돌린 뒤 흔들기 축(몸의 좌우)을 계산한다
     m.rotation.order = 'XZY'; m.rotation.y = -Math.PI / 2; // XZY: 좌우 흔들림(z)·앞기울임(x)이 진행 방향 기준이 되도록
@@ -186,6 +189,7 @@ export function createGround(ctx) {
   function pose(n, ang) { const b = bones[n]; if (b) b.quaternion.copy(rest[n]).premultiply(_q.setFromAxisAngle(axis[n], ang)); }
   function animateHero(t, moving, dt, run) {
     heroAmt += ((moving ? 1 : 0) - heroAmt) * Math.min(1, dt * 8);
+    if (heroMixer) { heroWalk.setEffectiveWeight(heroAmt); heroWalk.timeScale = run ? 1.6 : 1.05; heroMixer.update(dt); return; } // 재리깅 모델: 실제 걷기 클립
     // 이 GLB의 자동 리깅은 다리 뼈가 메시와 어긋나 있음(좌우 엉덩이 뼈가 앞뒤 배치, 오른무릎 이탈 — 측정) →
     // 다리·팔 뼈를 돌리면 메시가 찢어지듯 보임. 재리깅 전까지는 뼈를 쉬는 자세로 두고 몸 전체만 걷는 느낌으로 흔든다.
     const a = heroAmt, k = run ? 1.4 : 1;

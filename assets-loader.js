@@ -53,11 +53,11 @@ export function setDragonPathVisual(model, path) {
 }
 // 승인된 GLB를 로드해 목표 크기(길이 m)로 정규화하고 전방을 -Z로 맞춘 Group을 돌려준다.
 // height: 사람형처럼 키(m) 기준으로 맞출 때. feet: 발바닥을 원점(y=0)에 둠
-export async function loadModel(id, { length = 4.5, flap = false, rig = false, height = 0, feet = false } = {}) {
+export async function loadModel(id, { length = 4.5, flap = false, rig = false, height = 0, feet = false, file = null } = {}) {
   const a = manifest?.[id];
   if (!a || a.type !== 'glb') return null;
   try {
-    const g = await gltf.loadAsync('assets/' + a.file);
+    const g = await gltf.loadAsync('assets/' + (file || a.file)); // file: 승인 전 미리보기용 교체 경로
     const root = g.scene;
     const box = new T.Box3().setFromObject(root), size = box.getSize(new T.Vector3()), center = box.getCenter(new T.Vector3());
     // 리깅 없는 GLB: 절차적 스켈레톤(버텍스 셰이더 스키닝, dragon-anim.js)으로 날개·꼬리·목·다리를 움직인다
