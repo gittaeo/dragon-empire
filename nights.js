@@ -12,7 +12,8 @@ export const NIGHT_PLAN = n => ({waves: 3 + n, size: 4 + n, interval: 22 - 2 * n
 // 하루 재료: 수리(가지2·돌1)와 방어막(가지1·돌2·파편1)을 동시에 만들 수 없게 → 택일 (Codex 리뷰). 남은 재료는 다음 날로 이월
 export const DAY_ITEMS = [['branch', 2], ['stone', 2], ['shard', 1]];
 // 셋째 밤 피날레 (NIGHTS_WEEK2.md P0): 웨이브 정리 → 엠페러 진화·대관식 → 루세르나(세 밤 전용 HP) → 격파 시 승리
-export const FINALE = {bossHp: 15000}; // 완벽 조준 자동 테스트 9000 → 7초라 상향, 사람 손 플레이로 조정
+// 보스 HP 가설: Codex 입력 봇(거의 완벽 조준) 15000HP → 11.1초 ≈ 1350 DPS. 사람 명중률 ~30% 가정 시 ~400 DPS × 목표 90~150초(NIGHTS_BOSS.md) ≈ 45000. 사람 플레이테스트로 조정
+export const FINALE = {bossHp: 45000};
 // 탑은 지난 습격으로 손상된 채 시작 → 첫 낮부터 수리/방어막 택일이 성립 (Codex 입력 봇: HP 100이면 수리 불가)
 export const TOWER_START = 80;
 export const DAY_SEC = 60, TOWER_MAX = 100, RAID_DAMAGE = 8, SHIELD_CHARGES = 6, SHIELD_R = 95;
