@@ -8,7 +8,7 @@ import {PAD} from './ground.js';
 export const NIGHTS_TOTAL = 3;
 export const DIRS = [{id: 'n', name: '북쪽', a: 0}, {id: 'e', name: '동쪽', a: Math.PI / 2}, {id: 's', name: '남쪽', a: Math.PI}, {id: 'w', name: '서쪽', a: -Math.PI / 2}];
 // 밤 n(1~3)의 웨이브: 웨이브 수·크기·간격·속도·습격자 비율
-export const NIGHT_PLAN = n => ({waves: 3 + n, size: 4 + n, interval: 22 - 2 * n, speed: 15 + 3 * n, hunters: n});
+export const NIGHT_PLAN = n => ({waves: 3 + n, size: 4 + n, interval: 22 - 2 * n, speed: 15 + 3 * n, hunters: n - 1}); // 첫 밤은 사냥꾼 없음(Codex QA: 1밤 처치 0으로 사망)
 // 하루 재료: 수리(가지2·돌1)와 방어막(가지1·돌2·파편1)을 동시에 만들 수 없게 → 택일 (Codex 리뷰). 남은 재료는 다음 날로 이월
 export const DAY_ITEMS = [['branch', 2], ['stone', 2], ['shard', 1]];
 // 셋째 밤 피날레 (NIGHTS_WEEK2.md P0): 웨이브 정리 → 엠페러 진화·대관식 → 루세르나(세 밤 전용 HP) → 격파 시 승리
@@ -40,7 +40,7 @@ export function createNights(ctx) {
   function updateMarks() {
     const cam = ctx.camera, list = S.phase === 'night' || S.phase === 'boss' ? ctx.raiders() : [];
     list.sort((a, b) => a.position.distanceToSquared(towerPos) - b.position.distanceToSquared(towerPos));
-    const W = innerWidth, H = innerHeight, m = 46;
+    const W = innerWidth, H = innerHeight, m = 64;
     pool.forEach((el, i) => {
       const e = list[i]; if (!e) { el.style.display = 'none'; return; }
       pv.copy(e.position).project(cam); const behind = pv.z > 1;
