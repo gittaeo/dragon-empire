@@ -1,5 +1,10 @@
 # HANDOFF 로그 (최신이 위)
 
+## 2026-11-22 — [codex] 목책·수리 건설 효과음 및 시각 회귀 제안
+**한 일**: `audio.js`에 build_rise·hammer(3타)·wood_break 절차 효과음 추가, `tests/audio.test.mjs`에 등록/재생과 3타 예약 검증. 협업 보드에 연결 계약·표시명 '목책 방벽' 권고·내부 shield 키 유지·시각 회귀 항목·폴리모프 축 메타데이터 주의 기록.
+**테스트**: `node --test tests/*.test.mjs` 46/46(모의 Web Audio). 온보딩 테스트의 한국어 '방어막' 직접 매칭 없음 확인. 실제 음색·기기·시각 구현은 미검증.
+**다음 / 제한**: Claude가 nights.js 건설 시각/오디오 연결. 시각 디버그 계약 확정 후 실제 제작·6구간 파손·수리 비계 생애주기 회귀 테스트 작성. Claude의 미커밋 `nights.js` 밸런스 변경은 건드리지 않음.
+
 ## 2026-11-21 — [claude] 사람 조준 봇 밸런스 조정 (미커밋 · 사용자 직접 테스트 대기)
 **배경**: Codex가 18:30경 사용 한도(usage_limit_exceeded)로 중단. `tests/input-pilot.js`·`tests/nights-bot.cjs`에 Codex의 명중률 계측 미커밋 수정이 남아 있음(손대지 않음). Claude는 scratchpad 복사본(발사 허용 .07, 흔들림 .04)으로만 측정.
 **한 일 (nights.js)**: `NIGHT_PLAN` 속도 15+3n→13+5n(18/23/28), 간격 22-2n→23-3n(20/17/14). `FINALE.bossHp` 45000→65000, `boltDamage` .015→.01. 1밤 수치는 동일.

@@ -1,6 +1,6 @@
 // Procedural sound effects. AudioContext is created only after a user gesture.
 const STORAGE_KEY = 'dragonEmpire.audio.v1';
-const SOUND_NAMES = ['breath_flame','breath_storm','hit','kill','multikill','levelup','evolve','coronation','skill_meteor','skill_tornado','skill_lightning','skill_shield','ult_flame','ult_storm','boss_roar','boss_volley','elite_spawn','player_hurt','dive_shockwave','ui_click','tower_hit','shield_block','assault_warn','assault_intercept','wave_rush','day_start','dusk'];
+const SOUND_NAMES = ['breath_flame','breath_storm','hit','kill','multikill','levelup','evolve','coronation','skill_meteor','skill_tornado','skill_lightning','skill_shield','ult_flame','ult_storm','boss_roar','boss_volley','elite_spawn','player_hurt','dive_shockwave','ui_click','tower_hit','shield_block','assault_warn','assault_intercept','wave_rush','day_start','dusk','build_rise','hammer','wood_break'];
 export { SOUND_NAMES };
 
 const SPECS = {
@@ -32,6 +32,9 @@ const SPECS = {
   wave_rush:{f:120,end:500,d:.8,type:'sawtooth',noise:.35,rate:1},
   day_start:{f:330,end:660,d:.9,type:'sine',harm:1.5,rate:1},
   dusk:{f:500,end:160,d:1.15,type:'triangle',harm:1.5,rate:1},
+  build_rise:{f:85,end:145,d:1.35,attack:.32,type:'triangle',noise:.22,rate:1},
+  hammer:{f:440,end:230,d:.55,type:'triangle',noise:.2,pulses:[0,.19,.38],rate:2},
+  wood_break:{f:240,end:65,d:.38,type:'sawtooth',noise:.8,rate:6},
 };
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(Number(v)) ? Number(v) : lo));
 
@@ -81,7 +84,10 @@ export function createAudio() {
     const x=Number(options.x)||0,y=Number(options.y)||0,z=Number(options.z)||0, distance=Math.hypot(x,y,z), attenuation=1/(1+(distance/75)**2), volume=clamp(options.volume ?? 1,0,1)*attenuation;
     if (volume<.001) return false;
     try {
-      const gain=context.createGain(); gain.gain.setValueAtTime(.0001,now); gain.gain.exponentialRampToValueAtTime(Math.max(.0002,volume*.14),now+(spec.attack || .012)); gain.gain.exponentialRampToValueAtTime(.0001,now+spec.d);
+      const gain=context.createGain(), peak=Math.max(.0002,volume*.14);
+      gain.gain.setValueAtTime(.0001,now);
+      if (spec.pulses) for (const t of spec.pulses) { gain.gain.setValueAtTime(.0001,now+t); gain.gain.exponentialRampToValueAtTime(peak,now+t+.008); gain.gain.exponentialRampToValueAtTime(.0001,now+t+.12); }
+      else { gain.gain.exponentialRampToValueAtTime(peak,now+(spec.attack || .012)); gain.gain.exponentialRampToValueAtTime(.0001,now+spec.d); }
       if (context.createStereoPanner) { const pan=context.createStereoPanner(); pan.pan.value=clamp(x/100,-1,1); gain.connect(pan); pan.connect(master); } else gain.connect(master);
       const track = source => { let sources = active.get(name); if (!sources) active.set(name, sources = new Set()); sources.add(source); source.onended = () => { sources.delete(source); if (!sources.size && active.get(name) === sources) active.delete(name); }; source.start(now); source.stop(now+spec.d+.03); };
       const osc=context.createOscillator(); osc.type=spec.type; osc.frequency.setValueAtTime(spec.f,now); osc.frequency.exponentialRampToValueAtTime(spec.end,now+spec.d); osc.connect(gain); track(osc);
