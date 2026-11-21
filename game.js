@@ -12,6 +12,7 @@ import {FlightAnimator} from './dragon-anim.js';
 import {createAudio} from './audio.js';
 import {syncTrials, emptyGrowth, migrateGrowth, accrueRest, tickPlay, combatXp, oneTime, gateFor, holdAtGate, REWARDS, SITES, DISCOVERY_STAGE_MUL} from './growth.js';
 import {createQuests} from './quests.js';
+import {createNights} from './nights.js';
 import {createGround, activeSlot, listSlots, MAX_SLOTS, ACTIVE_SLOT_KEY} from './ground.js';
 import {createSkillSystem, skillFor, fireTrait, SLOT_UNLOCK, COMBO_WINDOW, comboLabel, ULT_PER_KILL, ULT_PER_SEC} from './skills.js';
 
@@ -257,8 +258,8 @@ function refresh() {
   if (level < MAX_LEVEL) { const need = xpToNext(level), held = !!gateFor(level + 1, growth) && xp >= need; $('#xp').style.width = Math.min(1, xp / need) * 100 + '%'; $('#xptext').textContent = held ? '진화 시험 대기 — 시험을 통과하면 진화' : `성장 경험치 ${Math.floor(xp)} / ${need}${growth.rest > 0 ? ' · 휴식 숨결 ' + Math.round(growth.rest) : ''}`; }
   else { const need = rankXpToNext(rank); $('#xp').style.width = rankXp / need * 100 + '%'; $('#xptext').textContent = `황제 위계 경험치 ${rankXp} / ${need}`; }
   $('#hp').style.width = Math.max(0, hp / maxHp * 100) + '%';
-  $('#kills').textContent = `처치 ${kills} · 발견 ${growth.discovered.length}/${SITES.length}`;
-  $('#objective').textContent = level >= MAX_LEVEL ? '황제의 하늘 · 사냥하며 위계를 올리세요 (귀환 시 보상)' : st === 3 ? 'Lv.30 드래곤 엠페러로 진화하세요' : st === 2 ? 'Lv.20 3단계 진화까지 성장하세요' : 'Lv.10 진화의 갈림길까지 성장하세요';
+  $('#kills').textContent = NIGHTS ? `처치 ${kills}` : `처치 ${kills} · 발견 ${growth.discovered.length}/${SITES.length}`;
+  $('#objective').textContent = NIGHTS ? '풍향탑의 세 밤 · ' + (nights ? Math.min(nights.state.night, 3) + ' / 3밤' : '') : level >= MAX_LEVEL ? '황제의 하늘 · 사냥하며 위계를 올리세요 (귀환 시 보상)' : st === 3 ? 'Lv.30 드래곤 엠페러로 진화하세요' : st === 2 ? 'Lv.20 3단계 진화까지 성장하세요' : 'Lv.10 진화의 갈림길까지 성장하세요';
   $('#return').hidden = level < MAX_LEVEL || over; $('#pause-return').hidden = level < MAX_LEVEL;
 }
 function showCombo() {
@@ -304,7 +305,21 @@ document.querySelectorAll('[data-path]').forEach(b => b.onclick = () => {
   refresh(); hp = maxHp; $('#choice').hidden = true; paused = false; touch.setVisible(true); refresh();
   burst(player.position, pathColor(0xffa326, 0x63dcff), 100, 32, fxScale());
 });
+function endNights(won, why, S) {
+  if (over) return; over = true; playing = false; touch.setVisible(false); document.exitPointerLock?.();
+  for (const b of bolts) scene.remove(b.o); bolts.length = 0; for (const b of enemyBolts) scene.remove(b.o); enemyBolts.length = 0;
+  const rec = {won, night: S.night, tower: Math.max(0, Math.ceil(S.towerHp)), kills, time: Math.round(runTime)};
+  let best = null; try { best = JSON.parse(store.get('dragonEmpireNightsBest') || 'null'); } catch {}
+  const better = !best || (rec.won && !best.won) || (rec.won === best.won && (rec.night > best.night || (rec.night === best.night && rec.tower > best.tower)));
+  if (better) store.set('dragonEmpireNightsBest', JSON.stringify(rec));
+  const mm = Math.floor(rec.time / 60), ss = String(rec.time % 60).padStart(2, '0');
+  $('#result-label').textContent = 'THREE NIGHTS OF THE WIND TOWER';
+  $('#result-title').textContent = won ? '풍향탑을 지켰습니다' : why;
+  $('#result-desc').textContent = `${won ? why : rec.night + '번째 밤에서 멈췄습니다'} · 풍향탑 ${rec.tower}/100 · ${kills}마리 처치 · ${mm}:${ss}${better ? ' · 최고 기록!' : best ? ' · 최고 ' + (best.won ? '승리' : best.night + '번째 밤') : ''}`;
+  $('#restart').innerHTML = '다시 도전 <span>↗</span>'; $('#return').hidden = true; $('#result').hidden = false;
+}
 function finish(kind) {
+  if (NIGHTS) return endNights(false, '용이 쓰러졌습니다', nights.state);
   if (!TEST_RUN) gnd.saveDragon(progressSnapshot());
   if (over) return; over = true; playing = false; touch.setVisible(false); document.exitPointerLock?.();
   audio.stopAmbience(); skills.reset(); $('#combo').classList.remove('on');
@@ -324,7 +339,7 @@ function startCoronation() {
   banner('드래곤 엠페러 대관', 'ULT 충전 완료 · 황제의 하늘이 열립니다', 3.5); refresh();
 }
 function killEnemy(e) {
-  quests?.onKill(e);
+  quests?.onKill(e); nights?.onKill(e);
   combo = comboTimer > 0 ? combo + 1 : 1; comboTimer = COMBO_WINDOW; showCombo();
   if (stage() >= 4 && coronation < 0) ult = Math.min(100, ult + ULT_PER_KILL);
   if (e.userData.elite) { elite = null; for (let i = 0; i < 3; i++) burst(e.position, i ? 0xffd27a : 0xffffff, 90, 50, 2.2); shakeAmp = Math.max(shakeAmp, .9); hitStopT = Math.max(hitStopT, .09); hp = maxHp; ult = Math.min(100, ult + 30); banner('황금 등불 대장 격파!', '생명력 회복 · ULT +30', 2); }
@@ -520,11 +535,12 @@ function updateEnemies(dt) {
   // 무리 스폰: 초당 스폰 속도만큼 예산 적립 → 4마리 이상 모이면 4~6마리 무리로
   const maxGroup = st >= 4 ? 9 : st === 3 ? 7 : 6;
   spawnBudget = Math.min(maxGroup, spawnBudget + STAGE.spawnRate[st - 1] * dt);
-  if (spawnBudget >= 4 && enemies.length + 4 <= cap && coronation < 0 && !quests?.trialActive) { const n = Math.min(Math.floor(spawnBudget), cap - enemies.length, maxGroup); spawnGroup(n); spawnBudget -= n; }
+  if (!NIGHTS && spawnBudget >= 4 && enemies.length + 4 <= cap && coronation < 0 && !quests?.trialActive) { const n = Math.min(Math.floor(spawnBudget), cap - enemies.length, maxGroup); spawnGroup(n); spawnBudget -= n; }
   shotTokens = Math.min(STAGE.shooters[st - 1], shotTokens + STAGE.shooters[st - 1] / 3 * dt);
   dashTimer -= dt;
   const contactR = 3.2 * sc + 4 + 2 * (ENEMY_GROW[st - 1] - 1);
   for (const e of [...enemies]) {
+    if (nights && nights.raidStep(e, dt)) continue; // 습격자는 풍향탑으로
     const u = e.userData; tmp.subVectors(player.position, e.position); const d = tmp.length(); tmp.divideScalar(d || 1);
     if (d > 450) { if (u.questTag) continue; groupCenter(_c); e.position.set(_c.x + (Math.random() - .5) * 50, _c.y, _c.z + (Math.random() - .5) * 50); continue; }
     if (u.dash > 0) { u.dash -= dt; e.position.addScaledVector(u.dashDir, 60 * dt); }
@@ -608,9 +624,10 @@ function loop() {
     runTime += dt; invuln = Math.max(0, invuln - dt); hitTimer -= dt;
     const grounded = gnd.mode !== 'air' || gnd.animating;
     if (!grounded) { const f = updateFlight(dt); boosting = f.boosting; fireBreath(dt, f.firing); updateEnemies(dt); if (!over) updateBoss(dt); if (!over) updateElite(dt); if (!over) updateBolts(dt); }
-    else { player.rotation.x *= Math.exp(-6 * raw); player.rotation.y = yaw; flySpeed = 0; animIn.fwd = animIn.side = 0; animIn.up = animIn.down = animIn.boost = false; }
+    else { if (nights) for (const e of [...enemies]) nights.raidStep(e, dt); // 밤에 착륙해도 습격자는 탑으로 계속 옴(Codex 리뷰)
+      player.rotation.x *= Math.exp(-6 * raw); player.rotation.y = yaw; flySpeed = 0; animIn.fwd = animIn.side = 0; animIn.up = animIn.down = animIn.boost = false; }
     gnd.update(dt, raw, keys, touch.state, camera); updateQuestHud();
-    tickPlay(growth, dt); if ((discoverT -= raw) <= 0) { discoverT = .4; checkDiscovery(); } updateTrial(dt); quests?.update(dt);
+    tickPlay(growth, dt); if ((discoverT -= raw) <= 0) { discoverT = .4; checkDiscovery(); } updateTrial(dt); quests?.update(dt); nights?.update(dt);
     if (xpToast > 0 && (xpToast -= raw) <= 0) $('#xptoast').classList.remove('on');
   }
   // 성장 저장은 일시정지(혈통 선택 등) 중에도 진행
@@ -634,7 +651,7 @@ function loop() {
 // ---------- 탐험·발견 (growth.SITES): 처음 가까이 날아가면 1회 XP ----------
 let discoverT = 0;
 function checkDiscovery() {
-  if (gnd.mode !== 'air') return;
+  if (NIGHTS || gnd.mode !== 'air') return;
   for (const s of SITES) {
     if (growth.discovered.includes(s.id)) continue;
     if (Math.hypot(player.position.x - s.x, player.position.y - s.y, player.position.z - s.z) < s.r + 10 * scaleNow) {
@@ -676,7 +693,9 @@ function updateTrial(dt) {
 
 // ---------- 지상 시제품 (ground.js): 착륙·폴리모프·채집·제작·수리·저장 ----------
 // ---------- 영구 성장 (사용자 확정 2026-11-20: 성장은 영구 저장, 새로 하려면 새 슬롯) ----------
-const SLOT = activeSlot(store), TEST_RUN = ['lv', 'xp', 'boss', 'elite'].some(k => params.has(k)); // 테스트 주소는 성장을 저장하지 않음
+// 「풍향탑의 세 밤」 모드 (?mode=nights): 별도 저장(슬롯 9), 성장 영구 저장 안 함
+const NIGHTS = params.get('mode') === 'nights', NIGHTS_SLOT = 9;
+const SLOT = activeSlot(store), TEST_RUN = NIGHTS || ['lv', 'xp', 'boss', 'elite'].some(k => params.has(k)); // 테스트 주소는 성장을 저장하지 않음
 let progressDirty = false, progressSaveT = 0;
 let growth = emptyGrowth();
 const progressSnapshot = () => { growth.lastSeen = Date.now(); return {level, xp, path, rank, rankXp, kills, lateKills, bossKills, growth, savedAt: Date.now()}; };
@@ -689,20 +708,26 @@ function applySavedDragon(d) {
   hp = maxHpForLevel(level) * (path === 'storm' ? 1.1 : 1); scaleNow = stageScale(level); camDistNow = STAGE.camDist[stage() - 1];
   growth = migrateGrowth(d.growth);
 }
-let quests = null;
-const gnd = createGround({scene, terrain, player, store, banner, burst, spark, sfx, slot: SLOT, loadModel,
-  onInteract: k => quests?.onInteract(k), promptFor: k => quests?.promptFor(k),
+let quests = null, nights = null;
+if (NIGHTS) { // 매 판 새로 시작: 공터에서 인간형으로, 첫 임무는 완료 상태(작업대·풍향탑 사용 가능)
+  const hy = Math.max(terrain.heightAt(-66.5, 1410), terrain.waterLevel);
+  store.set('dragonEmpireWorld.s' + NIGHTS_SLOT, JSON.stringify({version: 2, terrain: 'seed7-v1', form: 'human', pos: {x: -112, y: 0, z: 1402}, dragonPos: {x: -66.5, y: hy + 2.2, z: 1410}, yaw: 0, bag: {branch: 0, stone: 0, shard: 0, kit: 0}, collected: [], built: {workbench: true, tower: true}, step: 8}));
+  store.set('dragonEmpireWorld.s' + NIGHTS_SLOT + '.bak', '');
+}
+const gnd = createGround({scene, terrain, player, store, banner, burst, spark, sfx, slot: NIGHTS ? NIGHTS_SLOT : SLOT, loadModel,
+  canLand: () => !nights || nights.canLand(),
+  onInteract: k => (nights || quests)?.onInteract(k), promptFor: k => (nights || quests)?.promptFor(k),
   reward: (key, source, amount, label) => { const a = oneTime(growth, key, amount); if (a) { gainXp(a, source, label); markProgress(true); } },
   shake: a => { shakeAmp = Math.max(shakeAmp, a); }, fx: () => fxScale(), scale: () => scaleNow, path: () => path, pathColor,
   getYaw: () => yaw, getPitch: () => pitch, setYaw: v => { yaw = v; pitch = 0; }, time: () => time,
   onLandStart: () => { // 착륙 시 주변 적·탄 정리 (임시: 안전 구역에는 전투 없음)
-    for (const e of [...enemies]) removeEnemy(e); for (const list of [enemyBolts, bossBolts]) { for (const b of list) scene.remove(b.o); list.length = 0; }
+    for (const e of [...enemies]) if (!e.userData.nightWave) removeEnemy(e); for (const list of [enemyBolts, bossBolts]) { for (const b of list) scene.remove(b.o); list.length = 0; }
     for (const b of bolts) scene.remove(b.o); bolts.length = 0; skills.reset(); mouseDown = false; },
   onModeChange: m => { document.body.dataset.form = m; if (m === 'air') { pitch = .25; flySpeed = STAGE.speed[stage() - 1]; } refresh(); },
 });
 function groundKey(code) {
   const m = gnd.mode;
-  if (code === 'KeyG' && m === 'air') { if (boss) banner('착륙 불가', '루세르나가 하늘에 있습니다', 1.4); else if (coronation >= 0) {} else gnd.tryLand(); return true; }
+  if (code === 'KeyG' && m === 'air') { if (nights && !nights.canLand()) banner('착륙 불가', '밤에는 하늘에서 풍향탑을 지키세요', 1.4); else if (boss) banner('착륙 불가', '루세르나가 하늘에 있습니다', 1.4); else if (coronation >= 0) {} else gnd.tryLand(); return true; }
   if (code === 'KeyH' && m === 'landed') { gnd.toHuman(); return true; }
   if (code === 'KeyH' && m === 'human') { gnd.toDragon(); return true; }
   if (code === 'KeyE' && m !== 'air') { gnd.interact(); return true; }
@@ -710,12 +735,21 @@ function groundKey(code) {
   return m !== 'air' && ['KeyQ', 'KeyR', 'KeyF'].includes(code); // 지상에서는 스킬·브레스 막음
 }
 let questKey = '';
-function updateQuestHud() { const qo = quests?.objective() || ''; const t = trialAvailable() ? '비행 시험 · 풍향탑 공터 주변 금빛 고리 8개를 100초 안에 통과' : gateFor(level + 1, growth) && level === 9 && xp >= xpToNext(9) ? '진화 대기 · 첫 임무를 마치면 비행 시험이 열립니다' : (qo || gnd.objective()); if (t !== questKey) { questKey = t; $('#quest').textContent = t ? '임무 · ' + t : ''; $('#quest').hidden = !t; } }
+function updateQuestHud() { if (nights) { const t = nights.objective(); if (t !== questKey) { questKey = t; $('#quest').textContent = t; $('#quest').hidden = !t; } return; } const qo = quests?.objective() || ''; const t = trialAvailable() ? '비행 시험 · 풍향탑 공터 주변 금빛 고리 8개를 100초 안에 통과' : gateFor(level + 1, growth) && level === 9 && xp >= xpToNext(9) ? '진화 대기 · 첫 임무를 마치면 비행 시험이 열립니다' : (qo || gnd.objective()); if (t !== questKey) { questKey = t; $('#quest').textContent = t ? '임무 · ' + t : ''; $('#quest').hidden = !t; } }
 loadManifest().then(() => gnd.loadHero()).catch(e => console.warn('[hero]', e)); // 여성 폴리모프 모델
 applySavedDragon(gnd.world.dragon);
 syncTrials(growth, level); // 이미 넘은 진화 경계는 통과 처리(이전 저장·테스트 주소)
 const _fwd = new T.Vector3();
-quests = createQuests({scene, terrain, player, gnd, growth: () => growth, gainXp, oneTime: (k, a) => oneTime(growth, k, a), banner, sfx, burst, makeEnemy,
+if (NIGHTS) {
+  tod.setSpeed(0); eliteCd = Infinity; bossCountdown = Infinity; if (!path) path = 'flame'; for (const k in growth.trials) growth.trials[k] = true;
+  document.body.classList.add('nights');
+  nights = createNights({scene, gnd, tod, banner, sfx, burst, makeEnemy, removeEnemy, groundAt: ground, shake: a => { shakeAmp = Math.max(shakeAmp, a); },
+    nightEnemies: () => enemies.filter(e => e.userData.nightWave).length,
+    morning: n => { level = n === 1 ? 10 : 20; xp = 0; refresh(); hp = maxHp; invuln = 2; burst(player.position, 0xffdc88, 120, 40, fxScale()); sfx('evolve'); ambStage = stage(); audio.startAmbience(ambStage);
+      banner(STAGE_NAMES()[stage() - 1] + '(으)로 진화', '밤을 버틴 숨결이 몸을 키웁니다', 3); refresh(); },
+    end: (won, why, S) => endNights(won, why, S)});
+}
+if (!NIGHTS) quests = createQuests({scene, terrain, player, gnd, growth: () => growth, gainXp, oneTime: (k, a) => oneTime(growth, k, a), banner, sfx, burst, makeEnemy,
   stage, level: () => level, xp: () => xp, xpToNext, scale: () => scaleNow, markProgress, hurt, hp: () => hp, maxHp: () => maxHp,
   clearEnemiesNear: (pos, r) => { for (const e of [...enemies]) if (!e.userData.questTag && e.position.distanceTo(pos) < r) removeEnemy(e); for (const b of enemyBolts) scene.remove(b.o); enemyBolts.length = 0; },
   forward: () => _fwd.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch))});
@@ -734,7 +768,9 @@ function renderSlots() {
   el.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => { const n = +b.dataset.slot; if (n === SLOT) return; store.set(ACTIVE_SLOT_KEY, String(n)); location.reload(); });
   el.querySelectorAll('[data-new]').forEach(b => b.onclick = () => { if (!confirm(`슬롯 ${b.dataset.new}에서 새 해츨링으로 시작할까요? 지금 용은 슬롯 ${SLOT}에 그대로 남습니다.`)) return; store.set(ACTIVE_SLOT_KEY, b.dataset.new); location.reload(); });
 }
-renderSlots();
+if (NIGHTS) { $('#slots').hidden = true; $('#begin').innerHTML = '첫 낮 시작 <span>↗</span>'; $('#explore-link').hidden = false; $('#nights-btn').hidden = true;
+  try { const b = JSON.parse(store.get('dragonEmpireNightsBest') || 'null'); if (b) $('#nights-best').textContent = '최고 기록 · ' + (b.won ? '세 밤 승리' : b.night + '번째 밤') + ' · 풍향탑 ' + b.tower; } catch {} }
+else { renderSlots(); $('#nights-btn').onclick = () => { location.href = '?mode=nights'; }; }
 
 // 첫 무리 2개를 시작 방향(-Z) 앞에 배치
 if (gnd.mode === 'air') for (let i = 0; i < 2; i++) spawnGroup(5);
@@ -769,4 +805,4 @@ loadManifest().then(async () => {
 if (touch.isTouch) document.querySelector('.help')?.remove();
 // 디버그·테스트 훅 (읽기 전용 상태)
 window.__game = {camera, get hud() { return {level, xp, hp, maxHp, kills, path, paused, over, playing, yaw, pitch, coins, rank, rankXp, coronation, gliding, flySpeed, runTime, stage: stage(), invuln}; },
-  get player() { return player; }, anim, get enemies() { return enemies; }, get enemyBolts() { return enemyBolts; }, get boss() { return boss; }, spawnBoss, ground: gnd, get growth() { return growth; }, gainXp, get quests() { return quests; }, skills, castSkill, get combo() { return combo; }, get ult() { return ult; }, fillUlt() { ult = 100; }, spawnElite, get elite() { return elite; }, terrain, tod, touch, start};
+  get player() { return player; }, anim, get enemies() { return enemies; }, get enemyBolts() { return enemyBolts; }, get boss() { return boss; }, spawnBoss, ground: gnd, get growth() { return growth; }, gainXp, get quests() { return quests; }, get nights() { return nights; }, skills, castSkill, get combo() { return combo; }, get ult() { return ult; }, fillUlt() { ult = 100; }, spawnElite, get elite() { return elite; }, terrain, tod, touch, start};

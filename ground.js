@@ -228,6 +228,7 @@ export function createGround(ctx) {
   let landCheck = {ok: false, reason: ''};
   function tryLand() {
     if (mode !== 'air' || anim) return false;
+    if (ctx.canLand && !ctx.canLand()) { ctx.banner('착륙 불가', '밤에는 하늘에서 풍향탑을 지키세요', 1.4); return false; }
     landCheck = evaluateLanding(terrain, player.position.x, player.position.y, player.position.z, ctx.scale(), {props});
     if (!landCheck.ok) { ctx.banner('착륙 불가', landCheck.reason, 1.6); ctx.sfx?.('ui_click'); return false; }
     const from = player.position.clone(), to = new T.Vector3(player.position.x, landCheck.y + 2.2 * ctx.scale(), player.position.z);
@@ -388,8 +389,9 @@ export function createGround(ctx) {
   let hudKey = '';
   function refreshHud() {
     const P = player.position, far = Math.hypot(P.x - ZONE.x, P.z - ZONE.z), st = step(), bag = world.bag;
-    const show = {land: mode === 'air' && far < ZONE.r + 60, morph: mode === 'landed', dragon: mode === 'human', interact: mode === 'human' && !!prompt, takeoff: mode === 'landed'};
-    const p = mode === 'human' && prompt ? promptText(prompt) : mode === 'air' && far < ZONE.r + 60 ? (landCheck.ok ? '착륙할 수 있습니다 — G' : landCheck.reason) : '';
+    const landOk = !ctx.canLand || ctx.canLand();
+    const show = {land: landOk && mode === 'air' && far < ZONE.r + 60, morph: mode === 'landed', dragon: mode === 'human', interact: mode === 'human' && !!prompt, takeoff: mode === 'landed'};
+    const p = mode === 'human' && prompt ? promptText(prompt) : mode === 'air' && landOk && far < ZONE.r + 60 ? (landCheck.ok ? '착륙할 수 있습니다 — G' : landCheck.reason) : '';
     const bagTxt = mode !== 'air' || st !== 'land' ? `나뭇가지 ${bag.branch} · 돌 ${bag.stone} · 숨결 파편 ${bag.shard}${bag.kit ? ' · 수리 키트 1' : ''}` : '';
     const key = JSON.stringify([show, p, bagTxt, landCheck.ok]);
     if (key === hudKey) return; hudKey = key;
