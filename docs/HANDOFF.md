@@ -1,5 +1,10 @@
 # HANDOFF 로그 (최신이 위)
 
+## 2026-11-21 — [codex] 세 밤 전용 절차적 효과음
+**한 일**: `audio.js`에 tower_hit·shield_block·assault_warn·assault_intercept·wave_rush·day_start·dusk 추가. 경고음은 4초 상향 주파수·2.8초 어택. `tests/audio.test.mjs`에서 등록 및 잠금 해제 후 재생 호출 검증. 연결 시점 표를 협업 보드에 기록.
+**테스트**: `node --test tests/*.test.mjs` 43/43(모의 Web Audio). 실제 귀로 음색/밸런스 및 실기기 확인하지 않음.
+**다음 / 제한**: Claude가 nights.js 이벤트에 연결, 첫 낮은 최초 사용자 입력 이후에 재생. 현재 재생 중 효과음 개별 취소 기능이 없어 4초 경고 도중 일시정지/게임 종료해도 소리가 계속될 수 있음. 음소거는 마스터에 반영.
+
 ## 2026-11-21 — [codex] 첫 낮 온보딩 테스트 및 초행 테스트 키트
 **한 일**: `tests/nights-onboarding.cjs`에 실제 채집 상호작용·메뉴·제작·종료/재시작 단계 테스트, `docs/PLAYTEST_KIT.md`에 3명 초행 테스트·관찰·5문항·결과표. 협업 보드에 출시 전 결정 목록과 터치 문구 검토 전달.
 **테스트**: Playwright 1→2→3→4→3→4→5→6→7, 재시작→1, 준비 미완료 시간 종료→6→7 통과·pageerror 0. 채집 장소는 텔레포트, 시간은 단축했으므로 실제 60초 동선·사람 손·모바일 검증 아님.

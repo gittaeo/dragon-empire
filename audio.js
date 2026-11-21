@@ -1,6 +1,6 @@
 // Procedural sound effects. AudioContext is created only after a user gesture.
 const STORAGE_KEY = 'dragonEmpire.audio.v1';
-const SOUND_NAMES = ['breath_flame','breath_storm','hit','kill','multikill','levelup','evolve','coronation','skill_meteor','skill_tornado','skill_lightning','skill_shield','ult_flame','ult_storm','boss_roar','boss_volley','elite_spawn','player_hurt','dive_shockwave','ui_click'];
+const SOUND_NAMES = ['breath_flame','breath_storm','hit','kill','multikill','levelup','evolve','coronation','skill_meteor','skill_tornado','skill_lightning','skill_shield','ult_flame','ult_storm','boss_roar','boss_volley','elite_spawn','player_hurt','dive_shockwave','ui_click','tower_hit','shield_block','assault_warn','assault_intercept','wave_rush','day_start','dusk'];
 export { SOUND_NAMES };
 
 const SPECS = {
@@ -24,6 +24,14 @@ const SPECS = {
   player_hurt:{f:220,end:70,d:.22,type:'triangle',noise:.35,rate:4},
   dive_shockwave:{f:130,end:35,d:.7,type:'sine',noise:.8,rate:2},
   ui_click:{f:720,end:480,d:.06,type:'sine',rate:10},
+  // Three Nights: use distinct pitch contours/timbres for tower, shield and phase cues.
+  tower_hit:{f:105,end:38,d:.7,type:'triangle',noise:.65,rate:3},
+  shield_block:{f:750,end:1150,d:.24,type:'sine',harm:2,rate:6},
+  assault_warn:{f:240,end:960,d:4,attack:2.8,type:'sine',harm:1.5,rate:1},
+  assault_intercept:{f:850,end:320,d:.4,type:'triangle',harm:2,noise:.12,rate:3},
+  wave_rush:{f:120,end:500,d:.8,type:'sawtooth',noise:.35,rate:1},
+  day_start:{f:330,end:660,d:.9,type:'sine',harm:1.5,rate:1},
+  dusk:{f:500,end:160,d:1.15,type:'triangle',harm:1.5,rate:1},
 };
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(Number(v)) ? Number(v) : lo));
 
@@ -65,7 +73,7 @@ export function createAudio() {
     const x=Number(options.x)||0,y=Number(options.y)||0,z=Number(options.z)||0, distance=Math.hypot(x,y,z), attenuation=1/(1+(distance/75)**2), volume=clamp(options.volume ?? 1,0,1)*attenuation;
     if (volume<.001) return false;
     try {
-      const gain=context.createGain(); gain.gain.setValueAtTime(.0001,now); gain.gain.exponentialRampToValueAtTime(Math.max(.0002,volume*.14),now+.012); gain.gain.exponentialRampToValueAtTime(.0001,now+spec.d);
+      const gain=context.createGain(); gain.gain.setValueAtTime(.0001,now); gain.gain.exponentialRampToValueAtTime(Math.max(.0002,volume*.14),now+(spec.attack || .012)); gain.gain.exponentialRampToValueAtTime(.0001,now+spec.d);
       if (context.createStereoPanner) { const pan=context.createStereoPanner(); pan.pan.value=clamp(x/100,-1,1); gain.connect(pan); pan.connect(master); } else gain.connect(master);
       const osc=context.createOscillator(); osc.type=spec.type; osc.frequency.setValueAtTime(spec.f,now); osc.frequency.exponentialRampToValueAtTime(spec.end,now+spec.d); osc.connect(gain); osc.start(now); osc.stop(now+spec.d+.03);
       if (spec.harm) { const overtone=context.createOscillator(), sub=context.createGain(); overtone.type='sine'; overtone.frequency.setValueAtTime(spec.f*spec.harm,now); overtone.frequency.exponentialRampToValueAtTime(spec.end*spec.harm,now+spec.d); sub.gain.value=.26; overtone.connect(sub); sub.connect(gain); overtone.start(now); overtone.stop(now+spec.d+.03); }

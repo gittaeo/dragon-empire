@@ -19,6 +19,10 @@ test('오디오 잠금 해제, 소리 제한, 음소거 저장 및 거리 감쇠
     assert.deepEqual(JSON.parse(store.get('dragonEmpire.audio.v1')),{muted:true,master:.4});
     a.mute(false); a.startAmbience(3); a.stopAmbience();
     for(const name of SOUND_NAMES) assert.equal(typeof name,'string');
+    for(const name of ['tower_hit','shield_block','assault_warn','assault_intercept','wave_rush','day_start','dusk']) {
+      assert.ok(SOUND_NAMES.includes(name), `${name} is registered`);
+      assert.equal(a.play(name),true,`${name} can be played after unlock`);
+    }
   } finally { for(const [key,value] of Object.entries(previous)) { if(value===undefined) delete globalThis[key]; else globalThis[key]=value; } }
 });
 
