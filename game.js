@@ -12,7 +12,7 @@ import {FlightAnimator} from './dragon-anim.js';
 import {createAudio} from './audio.js';
 import {syncTrials, emptyGrowth, migrateGrowth, accrueRest, tickPlay, combatXp, oneTime, gateFor, holdAtGate, REWARDS, SITES, DISCOVERY_STAGE_MUL} from './growth.js';
 import {createQuests} from './quests.js';
-import {createNights} from './nights.js';
+import {createNights, parseSeed} from './nights.js';
 import {createGround, activeSlot, listSlots, MAX_SLOTS, ACTIVE_SLOT_KEY} from './ground.js';
 import {createSkillSystem, skillFor, fireTrait, SLOT_UNLOCK, COMBO_WINDOW, comboLabel, ULT_PER_KILL, ULT_PER_SEC} from './skills.js';
 
@@ -315,7 +315,7 @@ function endNights(won, why, S) {
   const mm = Math.floor(rec.time / 60), ss = String(rec.time % 60).padStart(2, '0');
   $('#result-label').textContent = 'THREE NIGHTS OF THE WIND TOWER';
   $('#result-title').textContent = won ? '풍향탑을 지켰습니다' : why;
-  $('#result-desc').textContent = `${won ? why : rec.night + '번째 밤에서 멈췄습니다'} · 풍향탑 ${rec.tower}/100 · ${kills}마리 처치 · ${mm}:${ss}${better ? ' · 최고 기록!' : best ? ' · 최고 ' + (best.won ? '승리' : best.night + '번째 밤') : ''}`;
+  $('#result-desc').textContent = `${won ? why : rec.night + '번째 밤에서 멈췄습니다'} · 풍향탑 ${rec.tower}/100 · ${kills}마리 처치 · ${mm}:${ss} · seed ${S.seed}${better ? ' · 최고 기록!' : best ? ' · 최고 ' + (best.won ? '승리' : best.night + '번째 밤') : ''}`;
   $('#restart').innerHTML = '다시 도전 <span>↗</span>'; $('#return').hidden = true; $('#result').hidden = false;
 }
 function finish(kind) {
@@ -743,7 +743,7 @@ const _fwd = new T.Vector3();
 if (NIGHTS) {
   tod.setSpeed(0); eliteCd = Infinity; bossCountdown = Infinity; if (!path) path = 'flame'; for (const k in growth.trials) growth.trials[k] = true;
   document.body.classList.add('nights');
-  nights = createNights({scene, gnd, tod, camera, raiders: () => enemies.filter(e => e.userData.raid), banner, sfx, burst, makeEnemy, removeEnemy, groundAt: ground, shake: a => { shakeAmp = Math.max(shakeAmp, a); },
+  nights = createNights({seed: parseSeed(params.get('seed')), scene, gnd, tod, camera, raiders: () => enemies.filter(e => e.userData.raid), banner, sfx, burst, makeEnemy, removeEnemy, groundAt: ground, shake: a => { shakeAmp = Math.max(shakeAmp, a); },
     nightEnemies: () => enemies.filter(e => e.userData.nightWave).length,
     morning: n => { level = n === 1 ? 10 : 20; xp = 0; refresh(); hp = maxHp; invuln = 2; burst(player.position, 0xffdc88, 120, 40, fxScale()); sfx('evolve'); ambStage = stage(); audio.startAmbience(ambStage);
       banner(STAGE_NAMES()[stage() - 1] + '(으)로 진화', '밤을 버틴 숨결이 몸을 키웁니다', 3); refresh(); },

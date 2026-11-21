@@ -20,11 +20,37 @@ export const RECIPES_N = {
 };
 // 예보: 밤마다 서로 다른 두 방향 (판마다 무작위)
 export function forecast(rand = Math.random) { const i = Math.floor(rand() * 4), j = (i + 1 + Math.floor(rand() * 3)) % 4; return [DIRS[i], DIRS[j]]; }
+// ── 시드 기반 웨이브 (docs/NIGHTS_WAVES.md, Codex 설계) ──
+// PRNG: mulberry32. 스트림 시드: FNV-1a 32비트로 `${runSeed}:${night}:${tag}` 해시 (버전 1 고정)
+export const WAVES_VERSION = 1;
+export function mulberry32(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+export function streamSeed(runSeed, night, tag) { let h = 0x811c9dc5; for (const c of `${runSeed >>> 0}:${night}:${tag}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h; }
+export const rngFor = (runSeed, night, tag) => mulberry32(streamSeed(runSeed, night, tag));
+export function parseSeed(str) { if (str == null || !/^\d{1,10}$/.test(str)) return null; const n = Number(str); return n <= 0xffffffff ? n : null; }
+// 패턴: alternate(A,B,A,B…) · focus(A,A,B,A… 한쪽 집중) / 수정자: escort(사냥꾼 호위, 2밤~) · rush(마지막 파 한 방향 돌진 ×1.15, 2밤~)
+export const RUSH_SPEED = 1.15;
+export function buildWaves({night, runSeed, dirs}) {
+  const plan = NIGHT_PLAN(night), r = rngFor(runSeed, night, 'pattern');
+  const pattern = night === 1 ? 'alternate' : (r() < .5 ? 'alternate' : 'focus');
+  const main = r() < .5 ? 0 : 1, other = 1 - main;
+  const escort = night >= 2 && r() < .5, rush = night >= 2 && r() < .6;
+  const waves = [];
+  for (let i = 0; i < plan.waves; i++) {
+    let di = pattern === 'alternate' ? (i + main) % 2 : (i === 2 ? other : main);
+    const last = i === plan.waves - 1;
+    if (rush && last) di = main;
+    waves.push({index: i, dir: dirs[di].id, count: plan.size, hunters: plan.hunters, speedMultiplier: rush && last ? RUSH_SPEED : 1,
+      modifier: rush && last ? 'rush' : escort && plan.hunters > 0 ? 'escort' : null});
+  }
+  return {version: WAVES_VERSION, seed: runSeed >>> 0, pattern, waves};
+}
 export function angleDiff(a, b) { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return Math.abs(d); }
 
 export function createNights(ctx) {
   const {scene, gnd, tod} = ctx, towerPos = gnd.positions.tower.clone(), v = new T.Vector3();
-  const S = {phase: 'day', night: 1, t: DAY_SEC, towerHp: TOWER_MAX, dirs: forecast(), shields: {}, waveI: 0, waveT: 0, raiders: 0, over: false, crafted: 0, best: null};
+  const runSeed = (ctx.seed ?? Math.floor(Math.random() * 0x100000000)) >>> 0;
+  const S = {phase: 'day', night: 1, t: DAY_SEC, towerHp: TOWER_MAX, dirs: forecast(rngFor(runSeed, 1, 'forecast')), shields: {}, waveI: 0, waveT: 0, raiders: 0, over: false, crafted: 0, best: null, seed: runSeed, plan: null};
+  console.info(`[세 밤] seed=${runSeed} waves v${WAVES_VERSION}`);
   // 탑 HP 바
   const bar = document.createElement('div'); bar.id = 'towerbar'; bar.innerHTML = '<b>풍향탑</b><i><span></span></i><small></small>'; document.getElementById('hud').appendChild(bar);
   const setBar = () => {
@@ -64,7 +90,7 @@ export function createNights(ctx) {
 
   // 낮: 재료 재배치
   function startDay() {
-    S.phase = 'day'; S.t = DAY_SEC; S.crafted = 0; S.dirs = forecast(); showOmens();
+    S.phase = 'day'; S.t = DAY_SEC; S.crafted = 0; S.dirs = forecast(rngFor(runSeed, S.night, 'forecast')); showOmens();
     tod.setHour(10); ctx.banner(`${S.night}번째 낮`, `오늘 밤 ${S.dirs.map(d => d.name).join('·')}에서 온다 — 작업대에서 준비하세요`, 3.2);
     let k = 0; for (const [type, n] of DAY_ITEMS) for (let i = 0; i < n; i++, k++) { const a = k / 5 * Math.PI * 2 + S.night, r = 14 + (k % 3) * 6; gnd.addGather(`n${S.night}_${type}${i}`, type, -8 + Math.cos(a) * r, -6 + Math.sin(a) * r); }
     ctx.onPhase?.('day');
@@ -73,17 +99,22 @@ export function createNights(ctx) {
     S.phase = 'dusk'; S.t = 2.2; tod.setHour(19); ctx.banner(`${S.night}번째 밤`, `${S.dirs.map(d => d.name).join('·')}에서 등불 군단이 온다`, 2.4); ctx.sfx?.('boss_roar');
     S.retry = 0; // 실제 변신·이륙은 update의 dusk 단계에서 게임 시간으로 재시도
   }
-  function beginWaves() { S.phase = 'night'; tod.setHour(22); S.waveI = 0; S.waveT = 1.5; S.raiders = 0; ctx.onPhase?.('night'); }
+  function beginWaves() { S.phase = 'night'; tod.setHour(22); S.waveI = 0; S.waveT = 1.5; S.raiders = 0; S.plan = buildWaves({night: S.night, runSeed, dirs: S.dirs}); S.spawnRng = rngFor(runSeed, S.night, 'spawn'); ctx.onPhase?.('night'); }
   function spawnWave() {
-    const plan = NIGHT_PLAN(S.night), d = S.dirs[S.waveI % S.dirs.length], base = dirVec(d.a).clone();
-    for (let i = 0; i < plan.size; i++) {
-      const side = (i - plan.size / 2) * 18, p = towerPos.clone().addScaledVector(base, 620 + Math.random() * 60).add(v.set(-base.z * side, 0, base.x * side));
-      p.y = ctx.groundAt(p.x, p.z) + 70 + Math.random() * 40;
-      const hunter = i < plan.hunters, e = ctx.makeEnemy(p.x, p.y, p.z, hunter ? 'rider' : 'moth');
-      if (!hunter) { e.userData.raid = {dir: d, speed: plan.speed * (.9 + Math.random() * .2)}; S.raiders++; const orb = new T.Mesh(raidOrbGeo, raidOrbMat); orb.position.y = 3.2 / Math.max(.5, e.scale.y); orb.scale.setScalar(1 / Math.max(.5, e.scale.y)); e.add(orb); }
+    const plan = NIGHT_PLAN(S.night), w = S.plan.waves[S.waveI], d = DIRS.find(x => x.id === w.dir), base = dirVec(d.a).clone(), rnd = S.spawnRng;
+    const escort = w.modifier === 'escort';
+    for (let i = 0; i < w.count; i++) {
+      const hunter = i < w.hunters, side = (i - w.count / 2) * 18;
+      // 호위: 사냥꾼이 무리 앞(탑 쪽)에서 출발
+      const p = towerPos.clone().addScaledVector(base, (hunter && escort ? 560 : 620) + rnd() * 60).add(v.set(-base.z * side, 0, base.x * side));
+      p.y = ctx.groundAt(p.x, p.z) + 70 + rnd() * 40;
+      const e = ctx.makeEnemy(p.x, p.y, p.z, hunter ? 'rider' : 'moth');
+      if (!hunter) { e.userData.raid = {dir: d, speed: plan.speed * w.speedMultiplier * (.9 + rnd() * .2)}; S.raiders++; const orb = new T.Mesh(raidOrbGeo, raidOrbMat); orb.position.y = 3.2 / Math.max(.5, e.scale.y); orb.scale.setScalar(1 / Math.max(.5, e.scale.y)); e.add(orb); }
       e.userData.nightWave = true;
     }
-    ctx.banner(`습격 ${S.waveI + 1} / ${plan.waves}`, `${d.name}에서 ${plan.size}마리`, 1.4);
+    const tag = w.modifier === 'rush' ? ' · 돌진!' : escort ? ' · 사냥꾼 호위' : '';
+    ctx.banner(`습격 ${S.waveI + 1} / ${S.plan.waves.length}${tag}`, `${d.name}에서 ${w.count}마리${w.modifier === 'rush' ? ' — 빠르다, 서둘러 막아라' : ''}`, w.modifier === 'rush' ? 2 : 1.4);
+    if (w.modifier === 'rush') { ctx.shake?.(.3); ctx.sfx?.('boss_roar'); }
     S.waveI++;
   }
   // game.js updateEnemies에서 호출: 습격자 이동·방어막·탑 피해. true면 일반 AI 건너뜀
@@ -147,7 +178,7 @@ export function createNights(ctx) {
     }
     else if (S.phase === 'night') {
       const plan = NIGHT_PLAN(S.night);
-      if (S.waveI < plan.waves) { S.waveT -= dt; if (S.waveT <= 0) { spawnWave(); S.waveT = plan.interval; } }
+      if (S.waveI < S.plan.waves.length) { S.waveT -= dt; if (S.waveT <= 0) { spawnWave(); S.waveT = plan.interval; } }
       else if (ctx.nightEnemies() === 0) { // 밤 끝 → 아침
         for (const k in shieldMesh) { scene.remove(shieldMesh[k]); delete shieldMesh[k]; } S.shields = {}; setBar();
         if (S.night >= NIGHTS_TOTAL) { startFinale(); return; }
@@ -162,7 +193,7 @@ export function createNights(ctx) {
     const ds = S.dirs.map(d => d.name).join('·');
     if (S.phase === 'day') return `${S.night}번째 낮 · ${Math.ceil(S.t)}초 · 오늘 밤 ${ds} — 재료를 모아 작업대에서 준비`;
     if (S.phase === 'dusk') return '해질녘 · 용으로 이륙';
-    if (S.phase === 'night') { const p = NIGHT_PLAN(S.night); return `${S.night}번째 밤 · 습격 ${Math.min(S.waveI, p.waves)}/${p.waves} · 남은 적 ${ctx.nightEnemies()} — 탑으로 오는 등불을 막으세요`; }
+    if (S.phase === 'night') { const n = S.plan ? S.plan.waves.length : NIGHT_PLAN(S.night).waves; return `${S.night}번째 밤 · 습격 ${Math.min(S.waveI, n)}/${n} · 남은 적 ${ctx.nightEnemies()} — 탑으로 오는 등불을 막으세요`; }
     if (S.phase === 'morning' || S.phase === 'await') return '아침 · 금빛 기둥(공터)에 착륙해 변신';
     if (S.phase === 'crown') return '드래곤 엠페러 대관 — 하늘이 응답한다';
     if (S.phase === 'boss') return '등불의 여왕 루세르나를 쓰러뜨리세요 · 풍향탑을 지키며';
