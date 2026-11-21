@@ -166,6 +166,9 @@ export function createGround(ctx) {
   async function loadHero() {
     if (!ctx.loadModel || hero) return false;
     const m = await ctx.loadModel('polymorph_female', {height: 1.75, feet: true}); if (!m) return false;
+    // 이 GLB는 실제로 모델 +X를 바라봄(발끝 측정) — manifest의 '+Z' 보정만으로는 옆을 봐서 게 걸음이 됨.
+    // 진행 방향(-Z)을 보도록 -90° 더 돌린 뒤 흔들기 축(몸의 좌우)을 계산한다
+    m.rotation.y = -Math.PI / 2;
     m.updateMatrixWorld(true);
     m.traverse(o => { if (o.isBone && BONES.includes(o.name)) bones[o.name] = o; });
     const qp = new T.Quaternion();
