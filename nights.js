@@ -13,6 +13,8 @@ export const NIGHT_PLAN = n => ({waves: 3 + n, size: 4 + n, interval: 22 - 2 * n
 export const DAY_ITEMS = [['branch', 2], ['stone', 2], ['shard', 1]];
 // 셋째 밤 피날레 (NIGHTS_WEEK2.md P0): 웨이브 정리 → 엠페러 진화·대관식 → 루세르나(세 밤 전용 HP) → 격파 시 승리
 export const FINALE = {bossHp: 15000}; // 완벽 조준 자동 테스트 9000 → 7초라 상향, 사람 손 플레이로 조정
+// 탑은 지난 습격으로 손상된 채 시작 → 첫 낮부터 수리/방어막 택일이 성립 (Codex 입력 봇: HP 100이면 수리 불가)
+export const TOWER_START = 80;
 export const DAY_SEC = 60, TOWER_MAX = 100, RAID_DAMAGE = 8, SHIELD_CHARGES = 6, SHIELD_R = 95;
 export const RECIPES_N = {
   repair: {name: '탑 수리', items: {branch: 2, stone: 1}, desc: '풍향탑 +30'},
@@ -65,8 +67,8 @@ export function angleDiff(a, b) { let d = a - b; while (d > Math.PI) d -= 2 * Ma
 export function createNights(ctx) {
   const {scene, gnd, tod} = ctx, towerPos = gnd.positions.tower.clone(), v = new T.Vector3();
   const runSeed = (ctx.seed ?? Math.floor(Math.random() * 0x100000000)) >>> 0;
-  const S = {phase: 'day', night: 1, t: DAY_SEC, towerHp: TOWER_MAX, dirs: forecast(rngFor(runSeed, 1, 'forecast')), shields: {}, waveI: 0, waveT: 0, raiders: 0, over: false, crafted: 0, best: null, seed: runSeed, plan: null, assault: null,
-    stats: {minTower: TOWER_MAX, blocked: 0, raidHits: 0, intercepted: 0, impacts: 0, crafted: []}}; // 플레이테스트 기록용 (PLAYTEST_KIT.md)
+  const S = {phase: 'day', night: 1, t: DAY_SEC, towerHp: TOWER_START, dirs: forecast(rngFor(runSeed, 1, 'forecast')), shields: {}, waveI: 0, waveT: 0, raiders: 0, over: false, crafted: 0, best: null, seed: runSeed, plan: null, assault: null,
+    stats: {minTower: TOWER_START, blocked: 0, raidHits: 0, intercepted: 0, impacts: 0, crafted: []}}; // 플레이테스트 기록용 (PLAYTEST_KIT.md)
   console.info(`[세 밤] seed=${runSeed} waves v${WAVES_VERSION}`);
   // 탑 HP 바
   const bar = document.createElement('div'); bar.id = 'towerbar'; bar.innerHTML = '<b>풍향탑</b><i><span></span></i><small></small>'; document.getElementById('hud').appendChild(bar);
@@ -106,6 +108,7 @@ export function createNights(ctx) {
   const towerTop = () => towerPos.clone().add(new T.Vector3(0, 14, 0));
   function onAssaultEvent(ev) {
     if (!ev) return;
+    if (ev.phase !== 'telegraph') ctx.stopSfx?.('assault_warn');
     if (ev.phase === 'telegraph') { warnRing.position.set(towerPos.x, ctx.groundAt(towerPos.x, towerPos.z) + 1.5, towerPos.z); warnBeam.position.set(towerPos.x, warnRing.position.y + 210, towerPos.z); setWarn(true); ctx.banner('루세르나가 풍향탑을 노린다', '곧 등불이 떨어진다 — 날아오는 주황 등불을 요격하세요', 2.2); ctx.sfx?.('assault_warn'); }
     else if (ev.phase === 'travel') {
       const bp = ctx.bossPos?.(); if (!bp) { onAssaultEvent(assaultResolve(S.assault, ev.id, 'cancelled')); return; }
@@ -186,8 +189,8 @@ export function createNights(ctx) {
     S.phase = 'crown'; tod.setHour(23.5); ctx.clearNightEnemies(); ctx.crown(); // 엠페러 진화 + 기존 대관식 연출
   }
   function onKill(e) { tutorKill(); if (e.userData.raid) S.raiders--; if (e.userData.assault && S.assault) { S.stats.intercepted++; } if (e.userData.assault && S.assault) onAssaultEvent(assaultResolve(S.assault, e.userData.assault.id, 'intercepted')); }
-  function lose(why) { if (S.over) return; S.over = true; setWarn(false); ctx.end(false, why, S); }
-  function win() { if (S.over) return; S.over = true; setWarn(false); ctx.end(true, `${NIGHTS_TOTAL}번째 밤까지 풍향탑을 지켰습니다`, S); }
+  function lose(why) { if (S.over) return; S.over = true; ctx.stopSfx?.('assault_warn'); setWarn(false); ctx.end(false, why, S); }
+  function win() { if (S.over) return; S.over = true; ctx.stopSfx?.('assault_warn'); setWarn(false); ctx.end(true, `${NIGHTS_TOTAL}번째 밤까지 풍향탑을 지켰습니다`, S); }
 
   // 작업대·풍향탑 상호작용 (ground.js onInteract 훅)
   function onInteract(kind) {

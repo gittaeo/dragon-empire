@@ -297,7 +297,8 @@ function hurt(amount) {
 // ---------- 진행 ----------
 let prewarmed = false;
 function start() { sfx('ui_click'); ambStage = stage(); audio.startAmbience(ambStage); if (!prewarmed) { prewarmed = true; try { skills.prewarm(renderer, camera); } catch (e) { console.warn(e); } } playing = true; paused = false; $('#start').hidden = true; $('#hud').hidden = false; touch.setVisible(true); refresh(); }
-function pause() { audio.stopAmbience(); paused = true; clearInput(); touch.setVisible(false); $('#start').hidden = false; $('#begin').textContent = '비행 계속하기 ↗'; refresh(); }
+function pause() { audio.stopAmbience(); audio.stop?.('assault_warn'); // 일시정지 중 예고음 정지(재개 시 이어 재생 안 함 — Codex 계약)
+  paused = true; clearInput(); touch.setVisible(false); $('#start').hidden = false; $('#begin').textContent = '비행 계속하기 ↗'; refresh(); }
 $('#begin').onclick = start; $('#restart').onclick = () => location.reload();
 $('#return').onclick = () => finish('return'); $('#pause-return').onclick = () => finish('return');
 document.querySelectorAll('[data-path]').forEach(b => b.onclick = () => {
@@ -751,7 +752,7 @@ const _fwd = new T.Vector3();
 if (NIGHTS) {
   tod.setSpeed(0); eliteCd = Infinity; bossCountdown = Infinity; if (!path) path = 'flame'; for (const k in growth.trials) growth.trials[k] = true;
   document.body.classList.add('nights');
-  nights = createNights({seed: parseSeed(params.get('seed')), scene, gnd, tod, camera, raiders: () => enemies.filter(e => e.userData.raid || e.userData.assault), bossPos: () => boss?.position, banner, sfx, burst, makeEnemy, removeEnemy, groundAt: ground, shake: a => { shakeAmp = Math.max(shakeAmp, a); },
+  nights = createNights({seed: parseSeed(params.get('seed')), scene, gnd, tod, camera, raiders: () => enemies.filter(e => e.userData.raid || e.userData.assault), stopSfx: name => audio.stop?.(name), bossPos: () => boss?.position, banner, sfx, burst, makeEnemy, removeEnemy, groundAt: ground, shake: a => { shakeAmp = Math.max(shakeAmp, a); },
     nightEnemies: () => enemies.filter(e => e.userData.nightWave).length,
     morning: n => { level = n === 1 ? 10 : 20; xp = 0; refresh(); hp = maxHp; invuln = 2; burst(player.position, 0xffdc88, 120, 40, fxScale()); sfx('evolve'); ambStage = stage(); audio.startAmbience(ambStage);
       banner(STAGE_NAMES()[stage() - 1] + '(으)로 진화', '밤을 버틴 숨결이 몸을 키웁니다', 3); refresh(); },
