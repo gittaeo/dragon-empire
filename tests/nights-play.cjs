@@ -25,7 +25,7 @@ const path = require('node:path');
       nights.update = (...args) => { const result = testUpdate(...args); testMinTower = Math.min(testMinTower, nights.state.towerHp); return result; };
       window.__nightsTest = {
         state: () => ({phase:nights.state.phase, night:nights.state.night, wave:nights.state.waveI, level, over, boss:!!boss, form:gnd.mode, busy:gnd.busy, seed:nights.state.seed, tower:nights.state.towerHp, minTower:testMinTower, runTime}),
-        shortenDay: () => { nights.state.t = 0; },
+        startNight: () => nights.debug.startNight(),
         clearWave: () => { for (const e of [...enemies]) if(e.userData.nightWave) killEnemy(e); nights.state.waveT = 0; },
         land: async () => { const {PAD} = await import('/ground.js'); player.position.set(PAD.x, ground(PAD.x,PAD.z)+10, PAD.z); return gnd.tryLand(); },
         morph: () => gnd.toHuman(),
@@ -40,7 +40,7 @@ const path = require('node:path');
     await page.locator('#begin').click();
     for (let night = 1; night <= 3; night++) {
       await page.waitForFunction(n => { const s = window.__nightsTest.state(); return s.phase === 'day' && s.night === n; }, night, {timeout: 30000});
-      await page.evaluate(() => window.__nightsTest.shortenDay());
+      await page.evaluate(() => window.__nightsTest.startNight());
       try { await page.waitForFunction(() => window.__nightsTest.state().phase === 'night', null, {timeout: 60000}); }
       catch (error) { console.error('Night transition state:', await page.evaluate(() => window.__nightsTest.state())); throw error; }
       const deadline = Date.now() + 90000;

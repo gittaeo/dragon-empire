@@ -15,8 +15,8 @@ const path = require('node:path');
       const hook = `\nwindow.__onboardTest = {
         state: () => ({tutorial:nights.debug.tutorial, phase:nights.state.phase, time:nights.state.t, bag:{...gnd.world.bag}}),
         goSpot: id => { const s=gnd.spots.find(x=>x.id===id); if(!s) throw Error('missing spot '+id); gnd.human.pos.copy(s.pos); },
-        goBench: () => gnd.human.pos.copy(gnd.positions.bench),
-        endDay: () => { nights.state.t = .01; },
+        goTower: () => gnd.human.pos.copy(gnd.positions.tower),
+        goWall: () => gnd.human.pos.copy(nights.base.pads.find(p => p.type === "wall").pos),
         lose: () => nights.debug.lose('test')
       };`;
       await route.fulfill({status: 200, contentType: 'text/javascript; charset=utf-8', body: source + hook});
@@ -28,27 +28,26 @@ const path = require('node:path');
     await page.locator('#begin').click();
     await waitStep(1);
     assert.match((await state()).tutorial.text, /재료/);
-    for (const [id, step] of [['n1_branch0', 2], ['n1_stone0', 2], ['n1_stone1', 2], ['n1_shard0', 3]]) {
+    for (const [id, step] of [['n1_branch0', 2], ['n1_branch1', 2], ['n1_stone0', 3]]) {
       await page.evaluate(id => window.__onboardTest.goSpot(id), id);
-      await page.keyboard.press('e');
-      await waitStep(step);
+      await page.keyboard.press('e'); await waitStep(step);
     }
-    await page.evaluate(() => window.__onboardTest.goBench());
+    await page.evaluate(() => window.__onboardTest.goWall());
     await page.keyboard.press('e'); await waitStep(4);
-    await page.locator('#craftmenu [data-x]').click(); await waitStep(3);
-    await page.keyboard.press('e'); await waitStep(4);
-    await page.locator('#craftmenu [data-i="1"]').click(); await waitStep(5);
-    await page.evaluate(() => window.__onboardTest.endDay()); await waitStep(6);
+    await page.evaluate(() => window.__onboardTest.goTower());
+    await page.keyboard.press('e');
+    await page.locator('#craftmenu [data-night]').click(); await waitStep(6);
     await waitStep(7);
     await page.evaluate(() => window.__onboardTest.lose());
     await page.locator('#restart').click();
     await page.waitForFunction(() => !!window.__onboardTest);
     await page.locator('#begin').click(); await waitStep(1);
-    await page.evaluate(() => window.__onboardTest.endDay());
-    await waitStep(6);
-    assert.equal((await state()).phase, 'dusk', 'day expiry transitions even when gathering incomplete');
+    await page.evaluate(() => window.__onboardTest.goTower());
+    await page.keyboard.press('e');
+    await page.locator('#craftmenu [data-night]').click(); await waitStep(6);
+    assert.equal((await state()).phase, 'dusk', 'player can start night without gathering');
     await waitStep(7);
     assert.deepEqual(errors, []);
-    console.log('PASS: 1→2→3→4→3→4→5→6→7, restart→1, expiry from step 1→dusk→7; test teleports and shortens timers');
+    console.log('PASS: 1→2→3→4→6→7; restart→1 and manual night start without gathering; test teleports');
   } finally { await context.close(); await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

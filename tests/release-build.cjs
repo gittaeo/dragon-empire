@@ -69,11 +69,16 @@ const server = http.createServer((req, res) => {
       await frame.getByRole('button', {name: /첫 낮 시작/}).waitFor({state: 'visible', timeout: 60000});
       assert.equal(await frame.locator('#explore-link').isVisible(), false);
       await frame.locator('#begin').click();
+      const gameFrame = page.frames().find(f => f.url().includes('/game/index.html'));
+      await gameFrame.waitForFunction(() => window.__game?.ground?.human);
+      await gameFrame.evaluate(() => window.__game.ground.human.pos.copy(window.__game.ground.positions.tower));
+      await page.keyboard.press('e');
+      await frame.locator('#craftmenu [data-night]').click();
       await frame.getByText(/1번째 밤 · 습격/).waitFor({state: 'visible', timeout: 120000});
       await page.waitForTimeout(2000);
       assert.deepEqual(failures, [], 'failed HTTP or network requests');
       assert.deepEqual(errors, [], 'uncaught browser exceptions');
-      console.log('PASS: same-origin iframe, start → first night; failed requests 0, page errors 0; no developer time skips');
+      console.log('PASS: same-origin iframe, start → first night; failed requests 0, page errors 0; test teleports to tower; no time skips');
     }
   } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(e => { console.error(e); server.close(); process.exitCode = 1; });
