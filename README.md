@@ -12,6 +12,16 @@
 
 ![전투 중 HUD와 드래곤의 모습](docs/media/gameplay.png)
 
+## 풍향탑의 세 밤 (출시 준비 중인 모드)
+
+낮에는 인간형 폴리모프로 재료를 모아 작업대에서 **탑 수리** 또는 **예보 방향 방어막** 중 하나를 고르고, 밤에는 용으로 이륙해 풍향탑으로 날아드는 등불 군단을 요격합니다. 밤을 넘길 때마다 진화하고, 셋째 밤에는 드래곤 엠페러로 대관한 뒤 탑을 노리는 루세르나와 싸웁니다.
+
+- 실행: `node server.cjs` 후 **http://127.0.0.1:4178/?mode=nights** (같은 판 재현: `&seed=1234`)
+- 출시 빌드: `node scripts/build-itch.mjs` → `dist/itch/`와 ZIP (업로드는 하지 않음, 쿼리 없이 세 밤으로 시작)
+- 테스트: `node --test tests/*.test.mjs` (단위), Playwright 계측 `tests/nights-play.cjs`·`tests/nights-onboarding.cjs`·`tests/release-build.cjs`
+- 설계 문서: [PIVOT_THREE_NIGHTS](docs/PIVOT_THREE_NIGHTS.md) · [WAVES](docs/NIGHTS_WAVES.md) · [BOSS](docs/NIGHTS_BOSS.md) · [ONBOARDING](docs/NIGHTS_ONBOARDING.md) · [RELEASE_ITCH](docs/RELEASE_ITCH.md) · [PLAYTEST_KIT](docs/PLAYTEST_KIT.md)
+- 상태: 자동·계측 테스트만 통과. 사람 손 플레이 밸런스, 모바일 실기기, 실제 itch 임베드, 에셋 상업 이용 권리는 아직 확인 전입니다.
+
 ## 현재 플레이할 수 있는 것
 
 - 3인칭 드래곤 비행과 브레스 공격, 적의 공격을 피하는 공중 전투

@@ -1,5 +1,10 @@
 # HANDOFF 로그 (최신이 위)
 
+## 2026-11-21 — [claude] 세 밤 출시 다듬기: 보스 가독성·출시 빌드·로딩·온보딩·통계·효과음
+**한 일**: 보스 탑 공격 가독성(경고 기둥·경로선·큰 등불, 09b996d). itch 출시 빌드 `scripts/build-itch.mjs`(DE_RELEASE로 세 밤 기본 진입, 런타임 파일만, Windows bsdtar ZIP·역슬래시/누락 시 실패, 1bfd60c·9d747a9). 로딩 진행 표시·시작 버튼 잠금·WebGL/부팅 실패 안내·세 밤 시작 문구(c6660f7). 첫 낮·밤 8단계 온보딩(590d118). 결과 화면 플레이테스트 통계+콘솔 기록(6f4233d). Codex 효과음 7종 연결(6d543b5). README에 세 밤 섹션.
+**테스트**: 단위 43/43, nights-play·nights-onboarding·release-build PASS, 효과음 7종 발생 계측 확인. 전부 자동·계측 — 사람 손 플레이·모바일 실기기·실제 itch·음색 미검증.
+**다음 / 사용자 결정**: 지인 플레이테스트(docs/PLAYTEST_KIT.md), 탐험 모드 노출·itch 공개·가격·에셋 권리·모바일 표기(AGENT_BOARD 결정 목록). Codex 진행 중: 오디오 정지 API·입력 봇 밸런스 참고치.
+
 ## 2026-11-21 — [codex] 세 밤 전용 절차적 효과음
 **한 일**: `audio.js`에 tower_hit·shield_block·assault_warn·assault_intercept·wave_rush·day_start·dusk 추가. 경고음은 4초 상향 주파수·2.8초 어택. `tests/audio.test.mjs`에서 등록 및 잠금 해제 후 재생 호출 검증. 연결 시점 표를 협업 보드에 기록.
 **테스트**: `node --test tests/*.test.mjs` 43/43(모의 Web Audio). 실제 귀로 음색/밸런스 및 실기기 확인하지 않음.
