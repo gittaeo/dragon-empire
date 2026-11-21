@@ -82,32 +82,38 @@ export function createNights(ctx) {
   function updateMarks() {
     const cam = ctx.camera, list = S.phase === 'night' || S.phase === 'boss' ? ctx.raiders() : [];
         list.sort((a, b) => (b.userData.assault ? 1 : 0) - (a.userData.assault ? 1 : 0) || a.position.distanceToSquared(towerPos) - b.position.distanceToSquared(towerPos));
-    const W = innerWidth, H = innerHeight, m = 64;
+    const W = innerWidth, H = innerHeight, m = 64, mt = W > 520 ? 130 : 150; // 위 여백: 제목·탑 바·패널 아래
     pool.forEach((el, i) => {
       const e = list[i]; if (!e) { el.style.display = 'none'; return; }
       pv.copy(e.position).project(cam); const behind = pv.z > 1;
-      let x = (pv.x * .5 + .5) * W, y = (-pv.y * .5 + .5) * H; const on = !behind && x > m && x < W - m && y > m && y < H - m;
-      if (!on) { let dx = x - W / 2, dy = y - H / 2; if (behind) { dx = -dx; dy = -dy; } const k = Math.min((W / 2 - m) / Math.abs(dx || 1e-3), (H / 2 - m) / Math.abs(dy || 1e-3)); x = W / 2 + dx * k; y = H / 2 + dy * k; el.style.transform = `translate(${x}px,${y}px) rotate(${Math.atan2(dy, dx)}rad)`; el.className = 'edge' + (e.userData.assault ? ' as' : ''); }
+      let x = (pv.x * .5 + .5) * W, y = (-pv.y * .5 + .5) * H; const on = !behind && x > m && x < W - m && y > mt && y < H - m;
+      if (!on) { let dx = x - W / 2, dy = y - H / 2; if (behind) { dx = -dx; dy = -dy; } const k = Math.min((W / 2 - m) / Math.abs(dx || 1e-3), (H / 2 - (dy < 0 ? mt : m)) / Math.abs(dy || 1e-3)); x = W / 2 + dx * k; y = H / 2 + dy * k; el.style.transform = `translate(${x}px,${y}px) rotate(${Math.atan2(dy, dx)}rad)`; el.className = 'edge' + (e.userData.assault ? ' as' : ''); }
       else { el.style.transform = `translate(${x}px,${y}px)`; el.className = 'on' + (e.userData.assault ? ' as' : ''); }
       el.style.display = 'block';
     });
   }
-  const warnRing = new T.Mesh(new T.RingGeometry(26, 32, 48), new T.MeshBasicMaterial({color: 0xff8a1a, transparent: true, opacity: .7, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending}));
+  const warnRing = new T.Mesh(new T.RingGeometry(40, 50, 64), new T.MeshBasicMaterial({color: 0xff8a1a, transparent: true, opacity: .7, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending}));
   warnRing.rotation.x = -Math.PI / 2; warnRing.visible = false; scene.add(warnRing);
+  const warnBeam = new T.Mesh(new T.CylinderGeometry(7, 7, 420, 12, 1, true), new T.MeshBasicMaterial({color: 0xff8a1a, transparent: true, opacity: .35, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending}));
+  warnBeam.visible = false; scene.add(warnBeam);
+  const pathGeo = new T.BufferGeometry().setFromPoints([new T.Vector3(), new T.Vector3()]);
+  const pathLine = new T.Line(pathGeo, new T.LineBasicMaterial({color: 0xffa31a, transparent: true, opacity: .85, depthWrite: false, blending: T.AdditiveBlending}));
+  pathLine.frustumCulled = false; pathLine.visible = false; scene.add(pathLine);
+  const setWarn = on => { warnRing.visible = warnBeam.visible = on; if (!on) pathLine.visible = false; };
   const assaultOrbMat = new T.MeshBasicMaterial({color: 0xff9a1a, transparent: true, opacity: .95, blending: T.AdditiveBlending, depthWrite: false});
   const towerTop = () => towerPos.clone().add(new T.Vector3(0, 14, 0));
   function onAssaultEvent(ev) {
     if (!ev) return;
-    if (ev.phase === 'telegraph') { warnRing.position.set(towerPos.x, ctx.groundAt(towerPos.x, towerPos.z) + 1.5, towerPos.z); warnRing.visible = true; ctx.banner('루세르나가 풍향탑을 노린다', '곧 등불이 떨어진다 — 날아오는 주황 등불을 요격하세요', 2.2); ctx.sfx?.('boss_roar'); }
+    if (ev.phase === 'telegraph') { warnRing.position.set(towerPos.x, ctx.groundAt(towerPos.x, towerPos.z) + 1.5, towerPos.z); warnBeam.position.set(towerPos.x, warnRing.position.y + 210, towerPos.z); setWarn(true); ctx.banner('루세르나가 풍향탑을 노린다', '곧 등불이 떨어진다 — 날아오는 주황 등불을 요격하세요', 2.2); ctx.sfx?.('boss_roar'); }
     else if (ev.phase === 'travel') {
       const bp = ctx.bossPos?.(); if (!bp) { onAssaultEvent(assaultResolve(S.assault, ev.id, 'cancelled')); return; }
       const e = ctx.makeEnemy(bp.x, bp.y - 6, bp.z, 'moth'); e.scale.multiplyScalar(1.6);
       e.userData.hp = e.userData.maxHp = S.assault.cfg.projectileHp; e.userData.nightWave = true;
       e.userData.assault = {id: ev.id, t: 0, start: e.position.clone()};
-      const orb = new T.Mesh(raidOrbGeo, assaultOrbMat); orb.scale.setScalar(2.2 / Math.max(.5, e.scale.y)); e.add(orb);
+      const orb = new T.Mesh(raidOrbGeo, assaultOrbMat); orb.scale.setScalar(4 / Math.max(.5, e.scale.y)); e.add(orb);
     }
     else if (ev.phase === 'resolved') {
-      warnRing.visible = false;
+      setWarn(false);
       if (ev.result === 'intercepted') ctx.banner('요격!', '풍향탑을 지켰다', 1.2);
     }
   }
@@ -158,6 +164,7 @@ export function createNights(ctx) {
     if (u.assault) {
       const a = u.assault, cfg = S.assault.cfg; a.t += dt; const k = Math.min(1, a.t / cfg.travel);
       e.position.lerpVectors(a.start, towerTop(), k); e.lookAt(towerPos); e.rotateY(Math.PI);
+      pathGeo.attributes.position.setXYZ(0, e.position.x, e.position.y, e.position.z); const tt = towerTop(); pathGeo.attributes.position.setXYZ(1, tt.x, tt.y, tt.z); pathGeo.attributes.position.needsUpdate = true; pathLine.visible = true;
       if (k >= 1) { const ev = assaultResolve(S.assault, a.id, 'impact'); ctx.removeEnemy(e);
         if (ev) { S.towerHp -= cfg.damage; setBar(); ctx.burst(towerTop(), 0xff8a1a, 80, 30, 1.8); ctx.shake(.8); ctx.sfx?.('player_hurt', towerPos); onAssaultEvent(ev); if (S.towerHp <= 0) lose('루세르나의 등불이 풍향탑을 무너뜨렸습니다'); } }
       return true;
@@ -175,8 +182,8 @@ export function createNights(ctx) {
     S.phase = 'crown'; tod.setHour(23.5); ctx.clearNightEnemies(); ctx.crown(); // 엠페러 진화 + 기존 대관식 연출
   }
   function onKill(e) { if (e.userData.raid) S.raiders--; if (e.userData.assault && S.assault) onAssaultEvent(assaultResolve(S.assault, e.userData.assault.id, 'intercepted')); }
-  function lose(why) { if (S.over) return; S.over = true; warnRing.visible = false; ctx.end(false, why, S); }
-  function win() { if (S.over) return; S.over = true; warnRing.visible = false; ctx.end(true, `${NIGHTS_TOTAL}번째 밤까지 풍향탑을 지켰습니다`, S); }
+  function lose(why) { if (S.over) return; S.over = true; setWarn(false); ctx.end(false, why, S); }
+  function win() { if (S.over) return; S.over = true; setWarn(false); ctx.end(true, `${NIGHTS_TOTAL}번째 밤까지 풍향탑을 지켰습니다`, S); }
 
   // 작업대·풍향탑 상호작용 (ground.js onInteract 훅)
   function onInteract(kind) {
@@ -231,9 +238,9 @@ export function createNights(ctx) {
     else if (S.phase === 'await') { if (gnd.mode === 'human') startDay(); }
     else if (S.phase === 'crown') { if (!ctx.coronationActive()) { S.phase = 'boss'; S.bossSpawned = true; ctx.spawnFinaleBoss(FINALE.bossHp); S.assault = createAssault(); } }
     else if (S.phase === 'boss') {
-      if (S.bossSpawned && !ctx.bossAlive()) { warnRing.visible = false; return win(); }
+      if (S.bossSpawned && !ctx.bossAlive()) { setWarn(false); return win(); }
       if (!ctx.coronationActive()) for (const ev of assaultStep(S.assault, dt)) onAssaultEvent(ev);
-      if (warnRing.visible) { const p = 1 + Math.sin(performance.now() / 120) * .06; warnRing.scale.setScalar(p); }
+      if (warnRing.visible) { const p = 1 + Math.sin(performance.now() / 120) * .06; warnRing.scale.setScalar(p); warnBeam.material.opacity = .1 + .12 * Math.abs(Math.sin(performance.now() / 160)); }
     }
   }
   function objective() {
