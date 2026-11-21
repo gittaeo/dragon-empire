@@ -695,7 +695,9 @@ function updateTrial(dt) {
 // ---------- 지상 시제품 (ground.js): 착륙·폴리모프·채집·제작·수리·저장 ----------
 // ---------- 영구 성장 (사용자 확정 2026-11-20: 성장은 영구 저장, 새로 하려면 새 슬롯) ----------
 // 「풍향탑의 세 밤」 모드 (?mode=nights): 별도 저장(슬롯 9), 성장 영구 저장 안 함
-const NIGHTS = params.get('mode') === 'nights', NIGHTS_SLOT = 9;
+// 출시 빌드(scripts/build-itch.mjs)는 window.DE_RELEASE로 쿼리 없이 세 밤 진입. 탐험 모드 노출 여부는 사용자 결정 전까지 숨김
+const RELEASE = window.DE_RELEASE || null;
+const NIGHTS = params.get('mode') === 'nights' || RELEASE?.mode === 'nights', NIGHTS_SLOT = 9;
 const SLOT = activeSlot(store), TEST_RUN = NIGHTS || ['lv', 'xp', 'boss', 'elite'].some(k => params.has(k)); // 테스트 주소는 성장을 저장하지 않음
 let progressDirty = false, progressSaveT = 0;
 let growth = emptyGrowth();
@@ -774,7 +776,7 @@ function renderSlots() {
   el.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => { const n = +b.dataset.slot; if (n === SLOT) return; store.set(ACTIVE_SLOT_KEY, String(n)); location.reload(); });
   el.querySelectorAll('[data-new]').forEach(b => b.onclick = () => { if (!confirm(`슬롯 ${b.dataset.new}에서 새 해츨링으로 시작할까요? 지금 용은 슬롯 ${SLOT}에 그대로 남습니다.`)) return; store.set(ACTIVE_SLOT_KEY, b.dataset.new); location.reload(); });
 }
-if (NIGHTS) { $('#slots').hidden = true; $('#begin').innerHTML = '첫 낮 시작 <span>↗</span>'; $('#explore-link').hidden = false; $('#nights-btn').hidden = true;
+if (NIGHTS) { $('#slots').hidden = true; $('#begin').innerHTML = '첫 낮 시작 <span>↗</span>'; $('#explore-link').hidden = !!RELEASE; $('#nights-btn').hidden = true;
   try { const b = JSON.parse(store.get('dragonEmpireNightsBest') || 'null'); if (b) $('#nights-best').textContent = '최고 기록 · ' + (b.won ? '세 밤 승리' : b.night + '번째 밤') + ' · 풍향탑 ' + b.tower; } catch {} }
 else { renderSlots(); $('#nights-btn').onclick = () => { location.href = '?mode=nights'; }; }
 

@@ -5,3 +5,4 @@ concepts/*.glb
 
 vendor/package/
 assets/pending/models/*_original.glb
+dist/
