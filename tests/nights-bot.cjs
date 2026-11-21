@@ -4,8 +4,8 @@
 // NIGHT>1 plays all earlier nights and teleports to the landing pad in morning.
 const {chromium} = require('playwright');
 const assert = require('node:assert/strict');
-const seed = process.env.SEED || '1', prep = process.env.PREP || 'shield', targetNight = Number(process.env.NIGHT || 1);
-if (!/^\d{1,10}$/.test(seed) || Number(seed) > 0xffffffff || !['shield', 'repair'].includes(prep) || ![1,2,3].includes(targetNight)) throw Error('invalid SEED, PREP or NIGHT');
+const seed = process.env.SEED || '1', prep = process.env.PREP || 'shield', targetNight = Number(process.env.NIGHT || 1), aim = process.env.AIM || 'precise';
+if (!/^\d{1,10}$/.test(seed) || Number(seed) > 0xffffffff || !['shield', 'repair'].includes(prep) || ![1,2,3].includes(targetNight) || !['precise','human'].includes(aim)) throw Error('invalid SEED, PREP, NIGHT or AIM');
 (async () => {
   const browser = await chromium.launch({headless: true, executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', args: ['--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist', '--no-sandbox']});
   const context = await browser.newContext({viewport:{width:1280,height:720}}), page = await context.newPage(), errors=[];
@@ -33,7 +33,7 @@ if (!/^\d{1,10}$/.test(seed) || Number(seed) > 0xffffffff || !['shield', 'repair
       const start=await page.evaluate(() => window.__game.hud.runTime);
       const startKills=await page.evaluate(() => window.__game.hud.kills);
       await page.evaluate(() => {window.__nightMin=window.__game.nights.state.towerHp;window.__nightMeter=setInterval(()=>{window.__nightMin=Math.min(window.__nightMin,window.__game.nights.state.towerHp)},50)});
-      await page.evaluate(async () => {const pilot=await import('/tests/input-pilot.js');pilot.startPilot({path:'flame'});});
+      await page.evaluate(async aim => {const pilot=await import('/tests/input-pilot.js');pilot.startPilot({path:'flame',aim});},aim);
       await page.waitForFunction(() => {const g=window.__game;return g.hud.over || g.nights.state.phase!=='night';},null,{timeout:360000});
       const sample=await page.evaluate(async ({n,start,startKills}) => {const g=window.__game;clearInterval(window.__nightMeter);const pilot=await import('/tests/input-pilot.js');pilot.stopPilot();return {night:n,minTower:Math.min(window.__nightMin,g.nights.state.towerHp),runMinTower:g.nights.state.stats.minTower,kills:g.hud.kills-startKills,dragonDied:g.hud.over && g.hud.hp<=0,over:g.hud.over,phase:g.nights.state.phase,nightSeconds:+(g.hud.runTime-start).toFixed(1),level:g.hud.level,blocked:g.nights.state.stats.blocked};},{n,start,startKills});
       nights.push(sample);
@@ -78,6 +78,6 @@ if (!/^\d{1,10}$/.test(seed) || Number(seed) > 0xffffffff || !['shield', 'repair
     }
     const result=await page.evaluate(() => {const g=window.__game;return {minTower:g.nights.state.stats.minTower,over:g.hud.over,phase:g.nights.state.phase,level:g.hud.level,crafted:g.nights.state.stats.crafted};});
     assert.deepEqual(errors,[]);
-    console.log(JSON.stringify({seed:Number(seed),requested:prep,prepared:crafted,note,targetNight,nights,...result,boss}));
+    console.log(JSON.stringify({seed:Number(seed),requested:prep,prepared:crafted,note,targetNight,aim,nights,...result,boss}));
   } finally {await context.close();await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
