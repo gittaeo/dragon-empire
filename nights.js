@@ -106,7 +106,7 @@ export function createNights(ctx) {
   const towerTop = () => towerPos.clone().add(new T.Vector3(0, 14, 0));
   function onAssaultEvent(ev) {
     if (!ev) return;
-    if (ev.phase === 'telegraph') { warnRing.position.set(towerPos.x, ctx.groundAt(towerPos.x, towerPos.z) + 1.5, towerPos.z); warnBeam.position.set(towerPos.x, warnRing.position.y + 210, towerPos.z); setWarn(true); ctx.banner('루세르나가 풍향탑을 노린다', '곧 등불이 떨어진다 — 날아오는 주황 등불을 요격하세요', 2.2); ctx.sfx?.('boss_roar'); }
+    if (ev.phase === 'telegraph') { warnRing.position.set(towerPos.x, ctx.groundAt(towerPos.x, towerPos.z) + 1.5, towerPos.z); warnBeam.position.set(towerPos.x, warnRing.position.y + 210, towerPos.z); setWarn(true); ctx.banner('루세르나가 풍향탑을 노린다', '곧 등불이 떨어진다 — 날아오는 주황 등불을 요격하세요', 2.2); ctx.sfx?.('assault_warn'); }
     else if (ev.phase === 'travel') {
       const bp = ctx.bossPos?.(); if (!bp) { onAssaultEvent(assaultResolve(S.assault, ev.id, 'cancelled')); return; }
       const e = ctx.makeEnemy(bp.x, bp.y - 6, bp.z, 'moth'); e.scale.multiplyScalar(1.6);
@@ -116,7 +116,7 @@ export function createNights(ctx) {
     }
     else if (ev.phase === 'resolved') {
       setWarn(false);
-      if (ev.result === 'intercepted') ctx.banner('요격!', '풍향탑을 지켰다', 1.2);
+      if (ev.result === 'intercepted') { ctx.banner('요격!', '풍향탑을 지켰다', 1.2); ctx.sfx?.('assault_intercept'); }
     }
   }
   // 방어막 표시(방향별 반구 조각)
@@ -133,14 +133,14 @@ export function createNights(ctx) {
 
   // 낮: 재료 재배치
   function startDay() {
-    S.phase = 'day'; S.t = DAY_SEC; S.crafted = 0; S.dirs = forecast(rngFor(runSeed, S.night, 'forecast')); showOmens();
+    S.phase = 'day'; S.dayCue = true; S.t = DAY_SEC; S.crafted = 0; S.dirs = forecast(rngFor(runSeed, S.night, 'forecast')); showOmens();
     tod.setHour(10); ctx.banner(`${S.night}번째 낮`, `오늘 밤 ${S.dirs.map(d => d.name).join('·')}에서 온다 — 작업대에서 준비하세요`, 3.2);
     let k = 0; for (const [type, n] of DAY_ITEMS) for (let i = 0; i < n; i++, k++) { const a = k / 5 * Math.PI * 2 + S.night, r = 14 + (k % 3) * 6; gnd.addGather(`n${S.night}_${type}${i}`, type, -8 + Math.cos(a) * r, -6 + Math.sin(a) * r); }
     ctx.onPhase?.('day');
     if (S.night === 1) { TU.bag0 = bagSum(); tutorStep(canCraft() ? 3 : 1); } else tutorStep(99);
   }
   function startNight() {
-    S.phase = 'dusk'; S.t = 2.2; tod.setHour(19); ctx.banner(`${S.night}번째 밤`, `${S.dirs.map(d => d.name).join('·')}에서 등불 군단이 온다`, 2.4); ctx.sfx?.('boss_roar');
+    S.phase = 'dusk'; S.t = 2.2; tod.setHour(19); ctx.banner(`${S.night}번째 밤`, `${S.dirs.map(d => d.name).join('·')}에서 등불 군단이 온다`, 2.4); ctx.sfx?.('dusk');
     if (S.night === 1) tutorStep(6);
     S.retry = 0; // 실제 변신·이륙은 update의 dusk 단계에서 게임 시간으로 재시도
   }
@@ -159,7 +159,7 @@ export function createNights(ctx) {
     }
     const tag = w.modifier === 'rush' ? ' · 돌진!' : escort ? ' · 사냥꾼 호위' : '';
     ctx.banner(`습격 ${S.waveI + 1} / ${S.plan.waves.length}${tag}`, `${d.name}에서 ${w.count}마리${w.modifier === 'rush' ? ' — 빠르다, 서둘러 막아라' : ''}`, w.modifier === 'rush' ? 2 : 1.4);
-    if (w.modifier === 'rush') { ctx.shake?.(.3); ctx.sfx?.('boss_roar'); }
+    if (w.modifier === 'rush') { ctx.shake?.(.3); ctx.sfx?.('wave_rush'); }
     S.waveI++;
   }
   // game.js updateEnemies에서 호출: 습격자 이동·방어막·탑 피해. true면 일반 AI 건너뜀
@@ -170,7 +170,7 @@ export function createNights(ctx) {
       e.position.lerpVectors(a.start, towerTop(), k); e.lookAt(towerPos); e.rotateY(Math.PI);
       pathGeo.attributes.position.setXYZ(0, e.position.x, e.position.y, e.position.z); const tt = towerTop(); pathGeo.attributes.position.setXYZ(1, tt.x, tt.y, tt.z); pathGeo.attributes.position.needsUpdate = true; pathLine.visible = true;
       if (k >= 1) { const ev = assaultResolve(S.assault, a.id, 'impact'); ctx.removeEnemy(e);
-        if (ev) { S.stats.impacts++; S.towerHp -= cfg.damage; setBar(); ctx.burst(towerTop(), 0xff8a1a, 80, 30, 1.8); ctx.shake(.8); ctx.sfx?.('player_hurt', towerPos); onAssaultEvent(ev); if (S.towerHp <= 0) lose('루세르나의 등불이 풍향탑을 무너뜨렸습니다'); } }
+        if (ev) { S.stats.impacts++; S.towerHp -= cfg.damage; setBar(); ctx.burst(towerTop(), 0xff8a1a, 80, 30, 1.8); ctx.shake(.8); ctx.sfx?.('tower_hit', towerPos); onAssaultEvent(ev); if (S.towerHp <= 0) lose('루세르나의 등불이 풍향탑을 무너뜨렸습니다'); } }
       return true;
     }
     const r = u.raid; if (!r) return false;
@@ -178,8 +178,8 @@ export function createNights(ctx) {
     e.position.addScaledVector(to, r.speed * dt); e.position.y = Math.max(e.position.y, ctx.groundAt(e.position.x, e.position.z) + 8);
     e.lookAt(towerPos); e.rotateY(Math.PI);
     const sh = S.shields[r.dir.id];
-    if (sh > 0 && d < SHIELD_R) { tutorTower(true); S.stats.blocked++; S.shields[r.dir.id]--; const m = shieldMesh[r.dir.id]; if (m) m.material.opacity = .6; setBar(); ctx.burst(e.position, 0x9ff0ff, 30, 20, 1); ctx.removeEnemy(e); S.raiders--; ctx.sfx?.('skill_shield'); if (S.shields[r.dir.id] <= 0) { scene.remove(shieldMesh[r.dir.id]); ctx.banner('방어막 소진', r.dir.name, 1.2); } return true; }
-    if (d < 22) { tutorTower(false); S.stats.raidHits++; S.towerHp -= RAID_DAMAGE; setBar(); ctx.burst(e.position, 0xff6a2a, 50, 25, 1.4); ctx.shake(.5); ctx.sfx?.('player_hurt', e.position); ctx.removeEnemy(e); S.raiders--; if (S.towerHp <= 0) lose('풍향탑이 무너졌습니다'); return true; }
+    if (sh > 0 && d < SHIELD_R) { tutorTower(true); S.stats.blocked++; S.shields[r.dir.id]--; const m = shieldMesh[r.dir.id]; if (m) m.material.opacity = .6; setBar(); ctx.burst(e.position, 0x9ff0ff, 30, 20, 1); ctx.removeEnemy(e); S.raiders--; ctx.sfx?.('shield_block', e.position); if (S.shields[r.dir.id] <= 0) { scene.remove(shieldMesh[r.dir.id]); ctx.banner('방어막 소진', r.dir.name, 1.2); } return true; }
+    if (d < 22) { tutorTower(false); S.stats.raidHits++; S.towerHp -= RAID_DAMAGE; setBar(); ctx.burst(e.position, 0xff6a2a, 50, 25, 1.4); ctx.shake(.5); ctx.sfx?.('tower_hit', e.position); ctx.removeEnemy(e); S.raiders--; if (S.towerHp <= 0) lose('풍향탑이 무너졌습니다'); return true; }
     return true;
   }
   function startFinale() {
@@ -253,6 +253,7 @@ export function createNights(ctx) {
   function update(dt) {
     if (S.over) { marks.hidden = true; tutorOff(); return; }
     tutorUpdate(dt);
+    if (S.dayCue && S.phase === 'day') { S.dayCue = false; ctx.sfx?.('day_start'); }
     updateMarks();
     for (const k in shieldMesh) { const m = shieldMesh[k]; m.material.opacity += (.16 - m.material.opacity) * Math.min(1, dt * 3); }
     if (S.phase === 'day') {
