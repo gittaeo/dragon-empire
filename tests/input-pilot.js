@@ -18,12 +18,12 @@ function mouse(type, button, extra = {}) {
 }
 const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
 
-export function startPilot({path = 'flame', engageRange = 420, standoff = 55, aim = 'precise'} = {}) {
+export function startPilot({path = 'flame', engageRange = 420, standoff = 55, aim = 'precise', jitter = 0.025, fireGate = 0.06} = {}) {
   stopPilot();
   const g = window.__game;
   pilot = {path, held: {}, firing: false, orbit: false, t0: performance.now(), samples: [], events: [],
     minClear: Infinity, minCamClear: Infinity, minCamBody: Infinity, terrainHits: 0, camUnder: 0, camInBody: 0,
-    pauses: 0, frames: 0, lastLevel: 1, hpMin: 100, done: false, aim, aimTarget: null, aimSince: 0};
+    pauses: 0, frames: 0, lastLevel: 1, hpMin: 100, done: false, aim, jitter, fireGate, aimTarget: null, aimSince: 0, aimPos: null, aimTime: 0};
   const begin = document.querySelector('#begin');
   if (!document.querySelector('#start').hidden) begin.click();
   pilot.timer = setInterval(() => tick(g, engageRange, standoff), 50);
@@ -69,17 +69,24 @@ function tick(g, engageRange, standoff) {
   for (const e of g.enemies) { const d = Math.hypot(e.position.x - pl.x, e.position.y - pl.y, e.position.z - pl.z); if (d < bd) { bd = d; best = e; } }
   if (!p.orbit) { mouse('mousedown', 2); p.orbit = true; }
   if (best) {
-    if (p.aimTarget !== best) { p.aimTarget = best; p.aimSince = now; }
+    if (p.aimTarget !== best) { p.aimTarget = best; p.aimSince = now; p.aimPos = null; }
     // 사람처럼 화면 십자선(카메라 정면)을 적에게 맞춘다
     const cf = g.camera.getWorldDirection(g.camera.position.clone()), cp = g.camera.position;
-    const dx = best.position.x - cp.x, dy = best.position.y - cp.y, dz = best.position.z - cp.z, dc = Math.hypot(dx, dy, dz) || 1;
+    let dx = best.position.x - cp.x, dy = best.position.y - cp.y, dz = best.position.z - cp.z;
+    const initialDistance = Math.hypot(dx,dy,dz);
+    if (p.aim === 'human' && p.aimPos && now > p.aimTime) {
+      const dt = now-p.aimTime, lead = Math.min(1.3,initialDistance/140);
+      dx += (best.position.x-p.aimPos.x)/dt*lead; dy += (best.position.y-p.aimPos.y)/dt*lead; dz += (best.position.z-p.aimPos.z)/dt*lead;
+    }
+    p.aimPos = {x:best.position.x,y:best.position.y,z:best.position.z}; p.aimTime=now;
+    const dc = Math.hypot(dx, dy, dz) || 1;
     const human = p.aim === 'human', delay = human && now - p.aimSince < .45;
-    const jitterYaw = human ? .055 * Math.sin(now * 1.7) : 0, jitterPitch = human ? .045 * Math.sin(now * 2.1) : 0;
+    const jitterYaw = human ? p.jitter * Math.sin(now * 1.7) : 0, jitterPitch = human ? p.jitter * .82 * Math.sin(now * 2.1) : 0;
     const dyaw = wrap(Math.atan2(-dx, -dz) - Math.atan2(-cf.x, -cf.z)) + jitterYaw, dp = Math.asin(dy / dc) - Math.asin(Math.max(-1, Math.min(1, cf.y))) + jitterPitch;
     const mx = Math.max(-80, Math.min(80, -dyaw / .004 * .5)), my = Math.max(-80, Math.min(80, -dp / .003 * .5));
     if (!delay && (Math.abs(mx) > .5 || Math.abs(my) > .5)) mouse('mousemove', 0, {movementX: mx, movementY: my});
     const aimErr = Math.hypot(dyaw, dp);
-    const shouldFire = !delay && bd < engageRange && aimErr < .12;
+    const shouldFire = !delay && bd < (human ? Math.min(engageRange, 180) : engageRange) && aimErr < (human ? p.fireGate : .12);
     if (shouldFire !== p.firing) { mouse(shouldFire ? 'mousedown' : 'mouseup', 0); p.firing = shouldFire; }
     key('KeyW', bd > standoff); key('KeyS', bd < standoff * .6);
   } else { key('KeyW', true); }
