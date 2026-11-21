@@ -63,6 +63,7 @@
       <button id="begin">비행 시작 <span>↗</span></button>
       <button id="pause-return" class="ghost" hidden>귀환 · 보상 받기</button>
     </div>
+    <small id="loadnote" class="note load"></small>
     <small id="nights-best" class="note"></small> <a id="explore-link" class="explore" href="?" hidden>탐험 모드 (개발 중) →</a>
     <div class="instructions">
       <span><kbd>WASD</kbd> 이동</span><span><kbd>우클릭 드래그</kbd> 시점</span><span><kbd>SPACE</kbd><kbd>C</kbd> 고도</span>
@@ -100,6 +101,18 @@
   </div>
 </section>
 
+<script>
+// 시작 실패 안내: WebGL 미지원 또는 스크립트 로딩 실패(20초 내 게임 미준비) 시 빈 화면 대신 안내
+(function () {
+  function fail(title, msg) {
+    var s = document.getElementById('start'); if (!s) return;
+    s.hidden = false; s.innerHTML = '<div class="panel hero fail"><h2 class="title"><span>Dragon</span><span>Empire</span></h2><p class="lead"><b>' + title + '</b><br>' + msg + '</p><button onclick="location.reload()">다시 시도 <span>↗</span></button></div>';
+  }
+  var ok = false; try { var c = document.createElement('canvas'); ok = !!(window.WebGL2RenderingContext && c.getContext('webgl2')) || !!c.getContext('webgl'); } catch (e) {}
+  if (!ok) { window.DE_NO_WEBGL = true; addEventListener('DOMContentLoaded', function () { fail('이 브라우저에서는 3D(WebGL)를 쓸 수 없습니다', '최신 Chrome·Edge·Firefox에서 하드웨어 가속을 켜고 다시 열어 주세요. PC 키보드·마우스를 권장합니다.'); }); return; }
+  setTimeout(function () { if (!window.__game) fail('게임을 불러오지 못했습니다', '네트워크가 느리거나 파일 일부를 받지 못했습니다. 새로고침해 주세요.'); }, 20000);
+})();
+</script>
 <script type="module" src="game.js"></script>
 </body>
 </html>

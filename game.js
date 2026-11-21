@@ -23,7 +23,8 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); renderer.setSize(innerW
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap; renderer.outputColorSpace = T.SRGBColorSpace;
 const camera = new T.PerspectiveCamera(60, innerWidth / innerHeight, .3, 12000);
 const terrain = createTerrain({scene, renderer, seed: 7, clouds: false, detail: true});
-loadEnvAssets('assets/approved/env/', {renderer}).then(e => terrain.applyEnv(e, {camera})).catch(e => console.warn('[env] 폴백', e));
+const loads = []; // 시작 전 에셋 로딩 추적 (로딩 표시용, 실패해도 절차적 폴백으로 진행)
+loads.push(loadEnvAssets('assets/approved/env/', {renderer}).then(e => terrain.applyEnv(e, {camera})).catch(e => console.warn('[env] 폴백', e)));
 const tod = createTimeOfDay({scene, renderer, camera, startHour: 6, dayLengthSec: 660});
 const clouds = createClouds({scene});
 const ground = (x, z) => Math.max(terrain.heightAt(x, z), terrain.waterLevel);
@@ -739,7 +740,7 @@ function groundKey(code) {
 }
 let questKey = '';
 function updateQuestHud() { if (nights) { const t = nights.objective(); if (t !== questKey) { questKey = t; $('#quest').textContent = t; $('#quest').hidden = !t; } return; } const qo = quests?.objective() || ''; const t = trialAvailable() ? '비행 시험 · 풍향탑 공터 주변 금빛 고리 8개를 100초 안에 통과' : gateFor(level + 1, growth) && level === 9 && xp >= xpToNext(9) ? '진화 대기 · 첫 임무를 마치면 비행 시험이 열립니다' : (qo || gnd.objective()); if (t !== questKey) { questKey = t; $('#quest').textContent = t ? '임무 · ' + t : ''; $('#quest').hidden = !t; } }
-loadManifest().then(() => gnd.loadHero()).catch(e => console.warn('[hero]', e)); // 여성 폴리모프 모델
+loads.push(loadManifest().then(() => gnd.loadHero()).catch(e => console.warn('[hero]', e))); // 여성 폴리모프 모델
 applySavedDragon(gnd.world.dragon);
 syncTrials(growth, level); // 이미 넘은 진화 경계는 통과 처리(이전 저장·테스트 주소)
 const _fwd = new T.Vector3();
@@ -776,7 +777,12 @@ function renderSlots() {
   el.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => { const n = +b.dataset.slot; if (n === SLOT) return; store.set(ACTIVE_SLOT_KEY, String(n)); location.reload(); });
   el.querySelectorAll('[data-new]').forEach(b => b.onclick = () => { if (!confirm(`슬롯 ${b.dataset.new}에서 새 해츨링으로 시작할까요? 지금 용은 슬롯 ${SLOT}에 그대로 남습니다.`)) return; store.set(ACTIVE_SLOT_KEY, b.dataset.new); location.reload(); });
 }
-if (NIGHTS) { $('#slots').hidden = true; $('#begin').innerHTML = '첫 낮 시작 <span>↗</span>'; $('#explore-link').hidden = !!RELEASE; $('#nights-btn').hidden = true;
+if (NIGHTS) { // 세 밤 시작 화면 문구 (docs/RELEASE_ITCH.md 페이지 문안 기준)
+  $('.hero .eyebrow').textContent = 'THREE NIGHTS OF THE WIND TOWER';
+  $('.hero .subtitle').innerHTML = '풍향탑의 <em>세 밤</em>';
+  $('.hero .lead').textContent = '낮에는 인간의 모습으로 재료를 모아 풍향탑을 준비하고, 밤에는 용으로 하늘에 올라 등불 군단을 막아내세요. 세 번의 밤을 버티며 진화하고, 마지막에는 등불의 여왕 루세르나와 맞섭니다.';
+  $('.hero > small.note:last-of-type').textContent = '개발 중인 브라우저 게임 · PC 키보드·마우스 권장 · 모바일은 실험 중';
+  $('#slots').hidden = true; $('#begin').innerHTML = '첫 낮 시작 <span>↗</span>'; $('#explore-link').hidden = !!RELEASE; $('#nights-btn').hidden = true;
   try { const b = JSON.parse(store.get('dragonEmpireNightsBest') || 'null'); if (b) $('#nights-best').textContent = '최고 기록 · ' + (b.won ? '세 밤 승리' : b.night + '번째 밤') + ' · 풍향탑 ' + b.tower; } catch {} }
 else { renderSlots(); $('#nights-btn').onclick = () => { location.href = '?mode=nights'; }; }
 
@@ -796,20 +802,28 @@ function syncStageModel() {
   const cur = player.userData.model; if (!want || want === cur) return;
   if (cur) cur.visible = false; want.visible = true; player.userData.model = want; setDragonPathVisual(want, path);
 }
-loadManifest().then(async () => {
+loads.push(loadManifest().then(async () => {
   addStageModel(0, await loadModel(STAGE_MODEL_IDS[0], {length: 9, rig: true}));
   for (let i = 1; i < 4; i++) addStageModel(i, await loadModel(STAGE_MODEL_IDS[i], {length: 9, rig: true}));
-}).catch(e => console.warn('[assets]', e));
+}).catch(e => console.warn('[assets]', e)));
 // 승인된 적·보스 GLB (manifest에 없으면 절차적 도형 유지). 텍스처를 약하게 자체발광시켜 등불이 보이게 함
 function glow(root, k) { root.traverse(o => { if (!o.isMesh || !o.material?.map) return; o.material.emissive = new T.Color(0xffffff); o.material.emissiveMap = o.material.map; o.material.emissiveIntensity = k; o.material.needsUpdate = true; }); }
-loadManifest().then(async () => {
+loads.push(loadManifest().then(async () => {
   for (const [k, d] of Object.entries(ENEMY_KINDS)) {
     const m = await loadModel(d.id, {length: d.len}); if (!m) continue;
     glow(m, .35); m.userData.glb = true; enemyTemplates[k] = m;
     for (const e of [...enemies]) if (e.userData.kind === k) { const q = e.position.clone(); removeEnemy(e); makeEnemy(q.x, q.y, q.z, k); }
   }
   bossModel = await loadModel('boss_lucerna', {length: 70}); if (bossModel) glow(bossModel, .45);
-}).catch(e => console.warn('[assets] enemies', e));
+}).catch(e => console.warn('[assets] enemies', e)));
+// 로딩 표시: 시작 버튼은 에셋 준비(또는 25초 경과) 후 활성화. 실패해도 기본 도형으로 플레이 가능
+{
+  const note = $('#loadnote'), btn = $('#begin'); let done = false;
+  btn.disabled = true; note.textContent = '에셋 불러오는 중…';
+  T.DefaultLoadingManager.onProgress = (url, n, total) => { if (!done) note.textContent = `에셋 불러오는 중 ${n} / ${total}`; };
+  const finish = slow => { if (done) return; done = true; btn.disabled = false; note.textContent = slow ? '일부 에셋이 늦습니다 — 기본 모델로 먼저 시작할 수 있어요' : ''; window.__assetsReady = true; };
+  Promise.allSettled(loads).then(() => finish(false)); setTimeout(() => finish(true), 25000);
+}
 if (touch.isTouch) document.querySelector('.help')?.remove();
 // 디버그·테스트 훅 (읽기 전용 상태)
 window.__game = {camera, get hud() { return {level, xp, hp, maxHp, kills, path, paused, over, playing, yaw, pitch, coins, rank, rankXp, coronation, gliding, flySpeed, runTime, stage: stage(), invuln}; },
