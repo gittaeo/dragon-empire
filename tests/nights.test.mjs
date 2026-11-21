@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { forecast, angleDiff, DIRS, NIGHT_PLAN, RECIPES_N, DAY_ITEMS, NIGHTS_TOTAL, DAY_SEC, TOWER_MAX, RAID_DAMAGE, SHIELD_CHARGES, SHIELD_R } from '../nights.js';
+import { forecast, angleDiff, DIRS, NIGHT_PLAN, RECIPES_N, DAY_ITEMS, NIGHTS_TOTAL, DAY_SEC, TOWER_MAX, RAID_DAMAGE, SHIELD_CHARGES, SHIELD_R, buildWaves, parseSeed, rngFor, WAVES_VERSION, RUSH_SPEED } from '../nights.js';
 
 test('forecast covers all twelve ordered pairs of distinct directions', () => {
   const pairs = new Set();
@@ -45,4 +45,49 @@ test('preparation costs fit the materials available per day', () => {
   assert.equal(NIGHTS_TOTAL, 3);
   assert.ok(DAY_SEC > 0 && TOWER_MAX > RAID_DAMAGE && RAID_DAMAGE > 0);
   assert.ok(SHIELD_CHARGES > 0 && SHIELD_R > 0);
+});
+
+test('parseSeed accepts only unsigned 32-bit decimal strings', () => {
+  for (const [input, expected] of [['0', 0], ['0001', 1], ['4294967295', 4294967295], [null, null], ['', null], ['-1', null], ['1.0', null], [' 1', null], ['4294967296', null], ['00000000000', null]]) assert.equal(parseSeed(input), expected, String(input));
+});
+
+test('seeded waves are deterministic and preserve forecast and night constraints', () => {
+  const patterns = new Set();
+  for (let seed = 0; seed < 2000; seed++) for (let night = 1; night <= 3; night++) {
+    const dirs = forecast(rngFor(seed, night, 'forecast'));
+    const args = {night, runSeed: seed, dirs};
+    const result = buildWaves(args), plan = NIGHT_PLAN(night);
+    assert.deepEqual(result, buildWaves(args));
+    assert.equal(result.version, WAVES_VERSION);
+    assert.equal(result.seed, seed);
+    assert.equal(result.waves.length, plan.waves);
+    patterns.add(result.pattern);
+    result.waves.forEach((wave, i) => {
+      assert.equal(wave.index, i);
+      assert.ok(dirs.some(d => d.id === wave.dir));
+      assert.equal(wave.count, plan.size);
+      assert.equal(wave.hunters, plan.hunters);
+      assert.ok(wave.hunters >= 0 && wave.hunters < wave.count);
+      assert.ok([null, 'escort', 'rush'].includes(wave.modifier));
+      assert.equal(wave.speedMultiplier, wave.modifier === 'rush' ? RUSH_SPEED : 1);
+      if (wave.modifier === 'rush') assert.equal(i, plan.waves - 1);
+      if (night === 1) { assert.equal(wave.hunters, 0); assert.equal(wave.modifier, null); }
+    });
+    if (night === 1) assert.equal(new Set(result.waves.map(w => w.dir)).size, 2);
+  }
+  assert.deepEqual([...patterns].sort(), ['alternate', 'focus']);
+});
+
+test('consuming forecast or spawn stream does not change the pattern stream', () => {
+  for (const seed of [0, 1, 1234, 777, 0xffffffff]) for (let night = 1; night <= 3; night++) {
+    const dirs = [DIRS[0], DIRS[1]], args = {night, runSeed: seed, dirs};
+    const expected = buildWaves(args);
+    const f = rngFor(seed, night, 'forecast'), s = rngFor(seed, night, 'spawn');
+    for (let i = 0; i < 100; i++) { f(); s(); }
+    assert.deepEqual(buildWaves(args), expected);
+    const otherDirs = [DIRS[2], DIRS[3]];
+    const changedForecast = buildWaves({...args, dirs: otherDirs});
+    assert.equal(changedForecast.pattern, expected.pattern);
+    assert.deepEqual(changedForecast.waves.map(({dir, ...rest}) => rest), expected.waves.map(({dir, ...rest}) => rest));
+  }
 });
