@@ -286,3 +286,4 @@ body:not(.nights) #raidmarks{display:none}
   body.nights #bossbar{top:200px}
   body.nights .help{display:none}
 }
+body:has(#start:not([hidden])) #raidmarks,body:has(#choice:not([hidden])) #raidmarks,body:has(#result:not([hidden])) #raidmarks{display:none}
