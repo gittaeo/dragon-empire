@@ -12,15 +12,19 @@
 
 ![전투 중 HUD와 드래곤의 모습](docs/media/gameplay.png)
 
-## 풍향탑의 세 밤 (출시 준비 중인 모드)
+![드래곤 비행에서 착륙 후 인간형 폴리모프로 변신하는 게임 화면](docs/media/flight-polymorph.gif)
 
-낮에는 인간형 폴리모프로 재료를 모아 작업대에서 **탑 수리** 또는 **예보 방향 목책 방벽** 중 하나를 고르고, 밤에는 용으로 이륙해 풍향탑으로 날아드는 등불 군단을 요격합니다. 밤을 넘길 때마다 진화하고, 셋째 밤에는 드래곤 엠페러로 대관한 뒤 탑을 노리는 루세르나와 싸웁니다.
+*실제 게임 화면을 자동 입력으로 촬영했습니다. 비행 구간과 착륙 시작 위치는 촬영을 위해 조정했고, 낮 조명과 진행 상태를 설정했습니다. 착륙·변신 자체는 게임의 조작과 연출을 사용했습니다.*
+
+## 풍향탑의 세 밤 (개발 중인 모드)
+
+낮에는 인간형 폴리모프로 재료를 모아 **집·막사·성문·망루**를 건설하고, 준비가 끝나면 풍향탑에서 밤을 시작합니다. 집의 주민은 막사에서 병사가 되어 지상 사슬 기사를 막고, 용은 하늘에서 등불 군단에 맞섭니다. 밤을 넘길 때마다 진화하고, 셋째 밤에는 드래곤 엠페러로 대관한 뒤 루세르나와 싸웁니다.
 
 - 실행: `node server.cjs` 후 **http://127.0.0.1:4178/?mode=nights** (같은 판 재현: `&seed=1234`)
 - 출시 빌드: `node scripts/build-itch.mjs` → `dist/itch/`와 ZIP (업로드는 하지 않음, 쿼리 없이 세 밤으로 시작)
 - 테스트: `node --test tests/*.test.mjs` (단위), Playwright 계측 `tests/nights-play.cjs`·`tests/nights-onboarding.cjs`·`tests/release-build.cjs`
-- 설계 문서: [PIVOT_THREE_NIGHTS](docs/PIVOT_THREE_NIGHTS.md) · [WAVES](docs/NIGHTS_WAVES.md) · [BOSS](docs/NIGHTS_BOSS.md) · [ONBOARDING](docs/NIGHTS_ONBOARDING.md) · [RELEASE_ITCH](docs/RELEASE_ITCH.md) · [PLAYTEST_KIT](docs/PLAYTEST_KIT.md)
-- 상태: 자동·계측 테스트만 통과. 사람 손 플레이 밸런스, 모바일 실기기, 실제 itch 임베드, 에셋 상업 이용 권리는 아직 확인 전입니다.
+- 설계 문서: [DEFENSE_V2_DECISION](docs/design/DEFENSE_V2_DECISION.md) · [M1_QA_RESULTS](docs/design/M1_QA_RESULTS.md) · [PIVOT_THREE_NIGHTS](docs/PIVOT_THREE_NIGHTS.md) · [WAVES](docs/NIGHTS_WAVES.md) · [BOSS](docs/NIGHTS_BOSS.md) · [ONBOARDING](docs/NIGHTS_ONBOARDING.md) · [RELEASE_ITCH](docs/RELEASE_ITCH.md) · [PLAYTEST_KIT](docs/PLAYTEST_KIT.md)
+- 상태: 일부 자동 회귀는 통과했지만 M1 병사 처치 비율 목표에는 미달했습니다. 사람 손 플레이 밸런스, 모바일 실기기, 실제 itch 임베드, 에셋 상업 이용 권리는 아직 확인 전입니다.
 
 ## 현재 플레이할 수 있는 것
 
@@ -32,7 +36,7 @@
 - 산맥·강·구름·떠 있는 섬이 있는 3D 세계, 시간대 변화와 절차적 효과음
 - PC 키보드·마우스 및 모바일 터치 조작의 초기 지원
 
-**개발 중:** 착륙, 인간형 폴리모프, 지상 탐험, 채집·제작과 지속 세계 저장. 온라인 협동과 MMORPG 규모는 장기 검토 대상이며 현재 제공 기능이 아닙니다. 뽑기와 결제는 구현하지 않았습니다.
+**개발 중:** 착륙과 인간형 폴리모프, 지상 탐험, 채집·제작과 지속 세계 저장은 시제품으로 구현되어 있으며 완성도와 조작을 개선하고 있습니다. 온라인 협동과 MMORPG 규모는 장기 검토 대상이며 현재 제공 기능이 아닙니다. 뽑기와 결제는 구현하지 않았습니다.
 
 ## 실행 방법
 
@@ -50,6 +54,7 @@ node server.cjs
 | 마우스 오른쪽 버튼 드래그 | 자유 시점 조절 |
 | Space / C | 상승 / 하강 |
 | Shift | 가속 |
+| G / H | 착륙 / 착륙 후 인간형 변신 |
 | 마우스 왼쪽 버튼 / F | 브레스 공격 |
 | Q / E / R | 해금된 스킬 / 궁극기 |
 | Esc | 일시정지 |
